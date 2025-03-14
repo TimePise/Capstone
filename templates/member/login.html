@@ -1,0 +1,37 @@
+{% extends "include/base.html" %}
+{% block main_area %}
+로그인 페이지입니다.
+<br>
+
+<form name="flogin" method="post">
+{% csrf_token %}
+아이디 : <input type="text" name="member_id">
+비밀번호 : <input type="password" name="passwd">
+
+<br><br>
+<input type="button" value="로그인" onclick="loginChk()">
+<input type="button" value="회원가입" onclick="location.href='/member/register/'">
+</form>
+
+<script>
+function loginChk() {
+    var form = document.flogin;
+    if (form.member_id.value=="") {
+        alert("회원 아이디를 입력해 주십시오.");
+        form.member_id.focus();
+        return;
+    }
+    if (form.passwd.value=="") {
+        alert("비밀번호를 입력해 주십시오.");
+        form.passwd.focus();
+        return;
+    }
+    form.action = "/member/login/";
+    form.submit();
+}
+</script>
+
+{% if message %}
+<script>alert('{{ message }}');</script>
+{% endif %}
+{% endblock %}

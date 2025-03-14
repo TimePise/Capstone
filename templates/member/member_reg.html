@@ -1,0 +1,62 @@
+{% extends "include/base.html" %}
+{% block main_area %}
+    <h1>회원가입폼</h1>
+
+    <form name="f1" method="post" action="{% url 'member_reg' %}">
+        {% csrf_token %}
+        <table width="300" border="1" cellpadding="2" cellspacing="0">
+            <tbody>
+                <tr>
+                    <td>아이디 :</td>
+                    <td><input type="text" name="member_id"></td>
+                </tr>
+                <tr>
+                    <td>비밀번호 :</td>
+                    <td><input type="password" name="passwd"></td>
+                </tr>
+                <tr>
+                    <td>이름 :</td>
+                    <td><input type="text" name="name"></td>
+                </tr>
+                <tr>
+                    <td>이메일 :</td>
+                    <td><input type="text" name="email"></td>
+                </tr>
+            </tbody>
+        </table>
+        <br>
+        <button type="submit">회원가입하기</button>  <!-- form 제출을 위한 button 수정 -->
+    </form>
+
+    {% if message %}
+        <p style="color: red;">{{ message }}</p>
+    {% endif %}
+<br>
+
+
+<script>
+function memReg() {
+    var form = document.f1;
+    if (form.member_id.value=="") {
+        alert("아이디를 입력해 주십시오.");
+        form.member_id.focus();
+        return;
+    }
+    if (form.passwd.value=="") {
+        alert("비밀번호를 입력해 주십시오.");
+        form.passwd.focus();
+        return;
+    }
+    if (form.name.value=="") {
+        alert("이름을 입력해 주십시오.");
+        form.name.focus();
+        return;
+    }
+    form.action = "/member/register";
+    form.submit();
+}
+</script>
+{% if message %}
+<script>alert('{{ message }}');</script>
+{% endif %}
+{% endblock %}
