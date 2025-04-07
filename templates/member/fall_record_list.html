@@ -1,0 +1,40 @@
+<!-- templates/member/fall_record_list.html -->
+{% extends "member/base.html" %}
+<!-- prettier-ignore-start -->
+{% block title %} 낙상 기록 목록 {% endblock %}
+<!-- prettier-ignore-end -->
+{% block content %}
+<h2>낙상 기록 목록</h2>
+<table border="1">
+  <thead>
+    <tr>
+      <th>환자 이름</th>
+      <th>나이</th>
+      <th>호실</th>
+      <th>낙상 일시</th>
+      <th>낙상 단계</th>
+      <th>낙상 부위</th>
+      <th>특이사항</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for record in records %}
+    <tr>
+      <td>{{ record.name }}</td>
+      <td>{{ record.age }}</td>
+      <td>{{ record.room_number }}</td>
+      <td>{{ record.fall_date|date:"Y-m-d H:i" }}</td>
+      <td>{{ record.fall_level }}</td>
+      <td>{{ record.fall_area }}</td>
+      <td>{{ record.note }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="7">기록이 없습니다.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<br />
+<a href="{% url 'fall_record_add' %}">➕ 낙상 기록 추가하기</a>
+{% endblock %}

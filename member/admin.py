@@ -1,11 +1,15 @@
 from django.contrib import admin
-from .models import Member
+from .models import Member, UserLog, FallRecord
 
-
+# Member 모델 등록
+@admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    # 내가 출력하고 싶은 제목명인 필드명 member_id과 name 을 표시한다.
-    list_display = ('member_id', 'name')
+    list_display = ['member_id', 'ward_name', 'usage_flag', 'reg_date']
 
+@admin.register(UserLog)
+class UserLogAdmin(admin.ModelAdmin):
+    list_display = ['member', 'action', 'reg_date']
 
-admin.site.register(Member, MemberAdmin)
-
+@admin.register(FallRecord)
+class FallRecordAdmin(admin.ModelAdmin):
+    list_display = ['name', 'age', 'fall_date', 'fall_level']
