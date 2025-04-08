@@ -1,20 +1,106 @@
-<!-- templates/member/fall_prevention.html -->
-{% extends "member/base.html" %} {% block title %}낙상 감지 시스템{% endblock %}
-{% block content %}
-<h2>낙상감지시스템</h2>
+{% extends "member/base.html" %}
+<!-- prettier-ignore-start -->
+{% block title %}낙상 감지 시스템{% endblock %}
+<!-- prettier-ignore-end -->
 
+{% block content %}
+<h2>낙상 감지 시스템</h2>
+
+<!-- 카메라 & 버튼 래퍼 -->
 <div
-  style="width: 800px; height: 500px; background: black; margin-bottom: 10px"
+  id="camera-wrapper"
+  style="
+    position: relative;
+    width: 800px;
+    height: 500px;
+    background: black;
+    margin-bottom: 20px;
+  "
 >
   <img
     src="{% url 'pose_estimation_feed' %}"
-    style="width: 100%; height: 100%"
+    style="width: 100%; height: 100%; object-fit: cover"
   />
-</div>
 
-<form method="GET" action="{% url 'toggle_privacy_mode' %}">
-  <button type="submit" style="background: purple; color: white">
+  <!-- 보호모드 버튼 -->
+  <button
+    id="privacy-btn"
+    style="
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 6px 10px; /* ✅ 사이즈 줄이기 */
+      font-size: 12px; /* ✅ 글자 크기 줄이기 */
+      background: purple;
+      color: white;
+      border: none;
+      border-radius: 4px; /* ✅ 둥글게 (optional) */
+      cursor: pointer;
+    "
+  >
     보호모드
   </button>
-</form>
+
+  <!-- 테스트 알림 버튼 -->
+  <button
+    id="alert-btn"
+    style="
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 6px 10px;
+      font-size: 12px;
+      background: orange;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    "
+  >
+    테스트 알림
+  </button>
+</div>
+
+<!-- ✅ Toastr 스타일 CDN 추가 -->
+<link
+  href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"
+  rel="stylesheet"
+/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+<script>
+  toastr.options = {
+    closeButton: true,
+    progressBar: true,
+    positionClass: "toast-top-right",
+    timeOut: "1500",
+  };
+
+  // 보호모드 버튼 클릭 시
+  document.getElementById("privacy-btn").addEventListener("click", function () {
+    fetch("{% url 'toggle_privacy_mode' %}")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.privacy_mode) {
+          toastr.success("🔒 보호모드가 활성화되었습니다");
+        } else {
+          toastr.info("🔓 보호모드가 비활성화되었습니다");
+        }
+      });
+  });
+
+  // 테스트 알림 버튼 클릭 시
+  document.getElementById("alert-btn").addEventListener("click", function () {
+    fetch("{% url 'test_fall_alert' %}", {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": "{{ csrf_token }}",
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        toastr.warning("📢 " + data.status);
+      });
+  });
+</script>
 {% endblock %}

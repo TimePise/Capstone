@@ -1,0 +1,22 @@
+{% extends "member/base.html" %}
+<!--prittier-->
+{% block title %}계정 탈퇴{% endblock %}
+<!--prittier-->
+{% block content %}
+<h2>⚠️ 정말 계정을 삭제하시겠습니까?</h2>
+<p>
+  <strong>{{ member.name }}</strong>님, 계정을 삭제하면 모든 데이터가
+  사라집니다.
+</p>
+
+<form method="POST">
+  {% csrf_token %}
+  <button
+    type="submit"
+    style="background: red; color: white; padding: 10px 20px"
+  >
+    계정 삭제하기
+  </button>
+  <a href="{% url 'mypage' %}" style="margin-left: 15px">취소</a>
+</form>
+{% endblock %}
