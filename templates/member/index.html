@@ -1,18 +1,12 @@
-{% extends "include/base.html" %}
-{% block main_area %}
-    index.html 입니다.
-<br>
-
-{% if not 'm_id' in request.session %}
-    <a href="/member/register">[회원가입]</a><br>
-    <a href="/member/login">[로그인]</a>
-{% else %}
-    {{ m_name }} 님 어서오세요.
-    <br><br>
-    <a href="/member/logout">[로그아웃]</a>
-{% endif %}
-
-{% if message %}
-<script>alert('{{ message }}');</script>
-{% endif %}
+<!-- templates/member/index.html -->
+{% extends "member/base.html" %} {% block title %}홈{% endblock %}
+<!-- prettier-ignore-start -->
+{% block content %}
+<!-- prettier-ignore-end -->
+<h2>🏠 낙상 감지 시스템 메인 페이지</h2>
+<p>안녕하세요 {{ m_name }}님! (ID: {{ m_id }})</p>
+<a href="{% url 'fall_record_list' %}">📋 낙상 기록 조회</a><br />
+<a href="{% url 'fall_prevention' %}">🎥 실시간 감지</a>
 {% endblock %}
+<!-- prettier-ignore-start -->
+<!-- prettier-ignore-end -->

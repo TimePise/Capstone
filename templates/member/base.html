@@ -1,0 +1,25 @@
+<!-- templates/member/base.html -->
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{% block title %}낙상 감지 시스템{% endblock %}</title>
+  </head>
+  <body>
+    <nav>
+      <a href="{% url 'member_index' %}">홈</a> |
+      <a href="{% url 'fall_record_list' %}">낙상 이력</a> |
+      <!-- prettier-ignore -->
+      {% if request.session.m_id %}
+
+      <a href="{% url 'mypage' %}">마이페이지</a> |
+      <span>{{ request.session.m_name }}님 환영합니다!</span> |
+      <a href="{% url 'member_logout' %}">로그아웃</a>
+      {% else %}
+      <a href="{% url 'member_login' %}">로그인</a>
+      {% endif %}
+    </nav>
+    <hr />
+    {% block content %}{% endblock %}
+  </body>
+</html>

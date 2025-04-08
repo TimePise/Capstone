@@ -1,0 +1,28 @@
+{% extends "member/base.html" %}
+<!-- prettier-ignore-start -->
+
+{% block title %}마이페이지{% endblock %}
+<!-- prettier-ignore-start -->
+{% block content %}
+<!-- prettier-ignore-end -->
+
+<h2>마이페이지</h2>
+
+<div style="border: 1px solid #ccc; padding: 20px; max-width: 500px">
+  <p><strong>이름 :</strong> {{ member.name }}</p>
+  <p><strong>아이디 :</strong> {{ member.member_id }}</p>
+  <p><strong>전화번호 :</strong> {{ member.phone|default_if_none:"-" }}</p>
+  <p><strong>병동명 :</strong> {{ member.ward_name }}</p>
+</div>
+
+<br />
+
+<form action="{% url 'member_logout' %}" method="get">
+  <button
+    type="submit"
+    style="padding: 10px 20px; background: black; color: white; border: none"
+  >
+    로그아웃
+  </button>
+</form>
+{% endblock %}

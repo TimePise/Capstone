@@ -1,158 +1,20 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>낙상방지 시스템</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: Arial, sans-serif;
-        }
-        .header {
-            background-color: #007bff;
-            color: white;
-            padding: 15px;
-            text-align: center;
-        }
-        .card {
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin: 20px 0;
-        }
-        .card-header {
-            background-color: #007bff;
-            color: white;
-        }
-        .card-body {
-            padding: 20px;
-            text-align: center;
-        }
-        .btn-custom {
-            background-color: #28a745;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            text-transform: uppercase;
-            font-weight: bold;
-        }
-        .btn-custom:hover {
-            background-color: #218838;
-        }
-        .footer {
-            background-color: #343a40;
-            color: white;
-            padding: 15px;
-            text-align: center;
-        }
-        #video-feed {
-            width: 100%;
-            max-width: 640px;
-            height: auto;
-            border: 2px solid black;
-            display: block;
-            margin: auto;
-        }
-        #toggleBtn {
-            margin-top: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-        #toggleBtn:hover {
-            background-color: #0056b3;
-        }
-    </style>
-</head>
-<body>
+<!-- templates/member/fall_prevention.html -->
+{% extends "member/base.html" %} {% block title %}낙상 감지 시스템{% endblock %}
+{% block content %}
+<h2>낙상감지시스템</h2>
 
-    <!-- Header Section -->
-    <div class="header">
-        <h1>낙상방지 시스템</h1>
-        <p>안전한 환경을 위한 지원을 제공합니다.</p>
-    </div>
+<div
+  style="width: 800px; height: 500px; background: black; margin-bottom: 10px"
+>
+  <img
+    src="{% url 'pose_estimation_feed' %}"
+    style="width: 100%; height: 100%"
+  />
+</div>
 
-    <!-- Main Content Section -->
-    <div class="container">
-        <div class="card">
-            <div class="card-header">
-                <h3>{{ member_name }}님, 환영합니다!</h3>
-            </div>
-            <div class="card-body">
-                <p>귀하의 안전을 위해 다음 단계로 나아가세요.</p>
-                <a href="#" class="btn-custom"><i class="fas fa-cogs"></i> 낙상방지 설정</a>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <h3>서비스 정보</h3>
-            </div>
-            <div class="card-body">
-                <p>낙상방지 시스템의 주요 기능은 귀하의 안전을 지키는 데 도움을 줍니다.</p>
-                <ul>
-                    <li><i class="fas fa-check-circle"></i> 실시간 모니터링</li>
-                    <li><i class="fas fa-check-circle"></i> 자동 경고 시스템</li>
-                    <li><i class="fas fa-check-circle"></i> 사용자 맞춤형 안전 알림</li>
-                </ul>
-            </div>
-        </div>
-
-        <!-- 📷 실시간 Pose Estimation (카드 UI 적용) -->
-        <div class="card">
-            <div class="card-header">
-                <h3>📷 실시간 Pose Estimation</h3>
-            </div>
-            <div class="card-body">
-                <img id="video-feed" src="{% url 'pose_feed' %}" alt="Pose Estimation Video">
-                <br><br>
-                <button id="toggleBtn" onclick="togglePrivacy()">프라이버시 모드: OFF</button>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Footer Section -->
-    <div class="footer">
-        <p>&copy; 2025 낙상방지 시스템 | 모든 권리 보유</p>
-    </div>
-
-    <!-- Bootstrap JS and jQuery -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.1/dist/umd/popper.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-
-    <!-- 프라이버시 모드 토글 -->
-    <script>
-        function togglePrivacy() {
-            fetch("{% url 'toggle_privacy' %}")
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('네트워크 응답이 올바르지 않습니다.');
-                    }
-                    return response.text();
-                })
-                .then(() => {
-                    let btn = document.getElementById("toggleBtn");
-                    if (btn.textContent.includes("OFF")) {
-                        btn.textContent = "프라이버시 모드: ON";
-                    } else {
-                        btn.textContent = "프라이버시 모드: OFF";
-                    }
-                    location.reload();
-                })
-                .catch(error => {
-                    console.error("프라이버시 모드 변경 실패:", error);
-                    alert("프라이버시 모드를 변경하는 데 문제가 발생했습니다.");
-                });
-        }
-    </script>
-
-</body>
-</html>
+<form method="GET" action="{% url 'toggle_privacy_mode' %}">
+  <button type="submit" style="background: purple; color: white">
+    보호모드
+  </button>
+</form>
+{% endblock %}

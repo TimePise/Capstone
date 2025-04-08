@@ -1,0 +1,21 @@
+<!-- templates/member/fall_record_add.html -->
+{% extends "member/base.html" %} {% block title %}낙상 기록 등록{% endblock %}
+{% block content %}
+<h2>낙상 기록 등록</h2>
+
+<form method="POST">
+  {% csrf_token %} 이름: <input type="text" name="name" /><br /><br />
+  나이: <input type="number" name="age" /><br /><br />
+  호실: <input type="text" name="room_number" /><br /><br />
+  낙상일시: <input type="datetime-local" name="fall_date" /><br /><br />
+  낙상 단계:
+  <select name="fall_level">
+    <option value="경미">경미</option>
+    <option value="중간">중간</option>
+    <option value="심각">심각</option></select
+  ><br /><br />
+  낙상 부위: <input type="text" name="fall_area" /><br /><br />
+  특이사항: <textarea name="note"></textarea><br /><br />
+  <button type="submit">저장</button>
+</form>
+{% endblock %}
