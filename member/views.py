@@ -4,7 +4,10 @@ from django.http import JsonResponse, StreamingHttpResponse
 from .models import Member, UserLog, FallRecord
 import cv2
 import mediapipe as mp
+import random
 from datetime import datetime
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 # MediaPipe 초기화
 mp_pose = mp.solutions.pose
@@ -13,6 +16,11 @@ mp_drawing = mp.solutions.drawing_utils
 
 # 전역 프라이버시 모드 상태
 privacy_mode = False
+
+# 인증번호 저장 (임시 메모리, 실제로는 세션이나 DB 사용 권장)
+verification_store = {}
+def generate_code():
+    return str(random.randint(100000, 999999))
 
 # ✅ index (홈)
 def index(request):
@@ -79,6 +87,86 @@ def member_logout(request):
     request.session.flush()
     return redirect("member_login")
 
+# ✅ 계정 삭제 (탈퇴)
+def member_delete(request):
+    member_id = request.session.get("m_id")
+    if not member_id:
+        return redirect("member_login")
+
+    member = get_object_or_404(Member, member_id=member_id)
+
+    if request.method == "POST":
+        # 로그 기록 남기기
+        UserLog.objects.create(member=member, action="logout")
+
+        # 회원 삭제
+        member.delete()
+        request.session.flush()  # 세션 클리어
+        return redirect("member_login")
+
+    return render(request, "member/member_delete.html", {"member": member})
+
+# ✅ 아이디,비밀번호 찾기 및 인증번호
+
+def verify_id(request):
+    if request.method == "POST":
+        name = request.POST.get("name")
+        phone = request.POST.get("phone")
+        code = request.POST.get("code")
+
+        if verification_store.get(phone) != code:
+            return JsonResponse({'status': '인증번호가 올바르지 않습니다.'}, status=400)
+
+        try:
+            member = Member.objects.get(name=name, phone=phone)
+            return JsonResponse({'member_id': member.member_id})
+        except Member.DoesNotExist:
+            return JsonResponse({'status': '일치하는 회원 정보가 없습니다.'}, status=404)
+
+
+def send_verification_code(request):
+    phone = request.POST.get('phone')
+    code = generate_code()
+    verification_store[phone] = code
+    print(f"📨 {phone} 번호로 인증번호 전송됨: {code}")  # 실제로는 문자 API로 전송
+    return JsonResponse({'status': '인증번호가 전송되었습니다.'})
+
+def find_id(request):
+    if request.method == "POST":
+        name = request.POST.get('name')
+        phone = request.POST.get('phone')
+        code = request.POST.get('code')
+
+        if verification_store.get(phone) != code:
+            return JsonResponse({'error': '인증번호가 올바르지 않습니다.'}, status=400)
+
+        member = Member.objects.filter(name=name, phone=phone).first()
+        if member:
+            return JsonResponse({'member_id': member.member_id})
+        else:
+            return JsonResponse({'error': '해당 정보와 일치하는 계정을 찾을 수 없습니다.'}, status=404)
+
+    return render(request, 'member/find_id.html')
+
+
+def find_password(request):
+    if request.method == "POST":
+        member_id = request.POST.get('member_id')
+        name = request.POST.get('name')
+        phone = request.POST.get('phone')
+        code = request.POST.get('code')
+
+        if verification_store.get(phone) != code:
+            return JsonResponse({'error': '인증번호가 올바르지 않습니다.'}, status=400)
+
+        member = Member.objects.filter(member_id=member_id, name=name, phone=phone).first()
+        if member:
+            return JsonResponse({'passwd': member.passwd})
+        else:
+            return JsonResponse({'error': '일치하는 정보가 없습니다.'}, status=404)
+
+    return render(request, 'member/find_password.html')
+
 # ✅ 마이페이지
 def mypage(request):
     member_id = request.session.get("m_id")
@@ -100,6 +188,49 @@ def fall_prevention(request):
         "m_name": request.session.get("m_name", ""),
         "privacy_mode": privacy_mode
     })
+
+def fall_record_add(request):
+    member_id = request.session.get("m_id")
+    if not member_id:
+        return redirect("member_login")
+
+    member = get_object_or_404(Member, member_id=member_id)
+
+    if request.method == "POST":
+        record = FallRecord.objects.create(
+            member=member,
+            name=request.POST["name"],
+            age=request.POST["age"],
+            room_number=request.POST["room_number"],
+            fall_date=request.POST["fall_date"],
+            fall_level=request.POST["fall_level"],
+            fall_area=request.POST["fall_area"],
+            note=request.POST.get("note", "")
+        )
+
+        # WebSocket으로 알림 전송
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "fall_alert_group",
+            {
+                "type": "send_fall_alert",
+                "message": f"{record.name} 환자의 낙상 발생!"
+            }
+        )
+
+        return redirect("fall_record_list")
+    
+    ###수동으로 낙상 알림을 전송하는 테스트용 뷰
+def test_fall_alert(request):
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        "fall_alerts",
+        {
+            "type": "send_fall_alert",
+            "message": "⚠️ 테스트 낙상 알림이 발생했습니다!"
+        }
+    )
+    return JsonResponse({"status": "알림 전송 완료!"})
 
 # ✅ 실시간 영상 스트리밍
 def generate_frames():

@@ -1,0 +1,12 @@
+{% extends "member/base.html" %}
+<!--prettier-->
+{% block title %}아이디 찾기 결과{% endblock %}
+<!--prettier-->
+
+{% block content %}
+<h2>아이디 찾기 결과</h2>
+<p style="font-size: 20px; color: green">
+  ✅ 고객님의 아이디는 <strong>{{ found_id }}</strong> 입니다.
+</p>
+<a href="{% url 'member_login' %}">➡️ 로그인 하러 가기</a>
+{% endblock %}

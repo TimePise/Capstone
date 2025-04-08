@@ -1,6 +1,5 @@
 {% extends "member/base.html" %}
 <!-- prettier-ignore-start -->
-
 {% block title %}마이페이지{% endblock %}
 <!-- prettier-ignore-start -->
 {% block content %}
@@ -17,12 +16,38 @@
 
 <br />
 
-<form action="{% url 'member_logout' %}" method="get">
-  <button
-    type="submit"
-    style="padding: 10px 20px; background: black; color: white; border: none"
-  >
-    로그아웃
-  </button>
-</form>
+<div style="display: flex; gap: 10px; max-width: 500px">
+  <!-- 로그아웃 버튼 -->
+  <form action="{% url 'member_logout' %}" method="get" style="flex: 1">
+    <button
+      type="submit"
+      style="
+        width: 100%;
+        padding: 10px;
+        background: black;
+        color: white;
+        border: none;
+      "
+    >
+      로그아웃
+    </button>
+  </form>
+
+  <!-- 계정 탈퇴 버튼 -->
+  <form action="{% url 'member_delete' %}" method="get" style="flex: 1">
+    <button
+      type="submit"
+      style="
+        width: 100%;
+        padding: 10px;
+        background: red;
+        color: white;
+        border: none;
+      "
+    >
+      계정 탈퇴
+    </button>
+  </form>
+</div>
+
 {% endblock %}

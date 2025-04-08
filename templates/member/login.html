@@ -1,18 +1,89 @@
-{% extends "member/base.html" %} {% block content %}
-<h2>로그인</h2>
+{% extends "member/base.html" %}
+<!--prittier-->
+{% block title %}로그인{% endblock %}
+<!--prittier-->
 
-<form method="POST">
-  {% csrf_token %}
-  <label>아이디: <input type="text" name="member_id" required /></label
-  ><br /><br />
-  <label>비밀번호: <input type="password" name="passwd" required /></label
-  ><br /><br />
-  <button type="submit">로그인</button>
-</form>
+{% block content %}
 
-{% if message %}
-<p style="color: red">{{ message }}</p>
-{% endif %}
+<h2
+  style="
+    text-align: center;
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 20px;
+  "
+>
+  로그인
+</h2>
 
-<a href="{% url 'member_reg' %}">회원가입</a>
+<div style="max-width: 400px; margin: 0 auto">
+  <form method="POST" id="login-form">
+    {% csrf_token %}
+
+    <input
+      type="text"
+      name="member_id"
+      placeholder="아이디"
+      required
+      style="
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 10px;
+        background: #f1f3f2;
+      "
+    />
+    <input
+      type="password"
+      name="passwd"
+      placeholder="비밀번호"
+      required
+      style="
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 10px;
+        background: #f1f3f2;
+      "
+    />
+
+    {% if message %}
+    <p style="color: red; text-align: center">{{ message }}</p>
+    {% endif %}
+
+    <button
+      type="submit"
+      style="
+        width: 100%;
+        padding: 14px;
+        background: black;
+        color: white;
+        font-size: 16px;
+        border: none;
+        margin-top: 10px;
+      "
+    >
+      로그인
+    </button>
+  </form>
+
+  <div style="margin-top: 20px; text-align: center">
+    <a href="{% url 'member_reg' %}">회원가입</a> |
+    <a href="{% url 'find_id' %}">아이디 찾기</a> |
+    <a href="{% url 'find_password' %}">비밀번호 찾기</a>
+  </div>
+</div>
+
+<!-- 🔔 Toast 메시지 지원용 SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+  {% if message %}
+    Swal.fire({
+      icon: "error",
+      title: "로그인 실패",
+      text: "{{ message }}",
+      confirmButtonColor: "#d33"
+    });
+  {% endif %}
+</script>
+
 {% endblock %}
