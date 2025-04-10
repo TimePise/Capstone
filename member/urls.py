@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include  # include 추가 ✅
 from . import views
 
 urlpatterns = [
@@ -16,13 +16,19 @@ urlpatterns = [
 
     # 마이페이지
     path('mypage/', views.mypage, name='mypage'),
-    # 낙상 감지 시스템
+
+    # 낙상 감지 시스템 (페이지)
     path('fall_prevention/', views.fall_prevention, name='fall_prevention'),
-    path('pose_feed/', views.pose_estimation_feed, name='pose_estimation_feed'),
+
+    # ✅ fall 앱 내부 기능 추가 (스트리밍 등)
+    path('fall_prevention/', include('fall.urls')),
+
     path('privacy/', views.toggle_privacy_mode, name='toggle_privacy_mode'),
+
     # 낙상 기록
     path('fall/add/', views.fall_record_add, name='fall_record_add'),
     path('fall/list/', views.fall_record_list, name='fall_record_list'),
+
     # ✅ WebSocket 테스트용 경로
     path('test/alert/', views.test_fall_alert, name='test_fall_alert'),
 ]

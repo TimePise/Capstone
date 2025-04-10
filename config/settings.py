@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'member',
     'channels',
+    'fall',
 ]
 # Channels 추가 설정
 ASGI_APPLICATION = "config.asgi.application"  # 프로젝트명.asgi

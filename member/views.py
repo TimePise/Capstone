@@ -8,6 +8,8 @@ import random
 from datetime import datetime
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+import numpy as np
+from PIL import ImageFont, ImageDraw, Image
 
 # MediaPipe 초기화
 mp_pose = mp.solutions.pose
@@ -233,30 +235,58 @@ def test_fall_alert(request):
     return JsonResponse({"status": "알림 전송 완료!"})
 
 # ✅ 실시간 영상 스트리밍
+# 기존의 generate_frames 함수
 def generate_frames():
     global privacy_mode
     cap = cv2.VideoCapture(0)
+
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
+
         frame = cv2.flip(frame, 1)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = pose.process(rgb)
+        draw_frame = frame.copy()
 
-        if privacy_mode:
-            frame[:] = (0, 0, 0)
-
+        # ✅ 랜드마크 그리기
         if result.pose_landmarks:
             mp_drawing.draw_landmarks(
-                frame, result.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                landmark_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2),
-                connection_drawing_spec=mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=3)
+                draw_frame,
+                result.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS,
+                landmark_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2, circle_radius=3),
+                connection_drawing_spec=mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
             )
 
-        _, buffer = cv2.imencode('.jpg', frame)
+        # ✅ 보호모드 오버레이 및 텍스트 표시 (Pillow 사용)
+        if privacy_mode:
+            overlay = np.zeros_like(draw_frame)
+
+            # PIL 이미지로 변환
+            pil_img = Image.fromarray(overlay)
+            draw = ImageDraw.Draw(pil_img)
+
+            try:
+                # 윈도우 시스템 기본 한글 폰트 (영어만 쓸 거여도 안전하게 로드)
+                font = ImageFont.truetype("C:/Windows/Fonts/malgun.ttf", 32)
+            except:
+                font = ImageFont.load_default()
+
+            draw.text((50, 50), "Privacy Mode ON", font=font, fill=(255, 255, 255))
+
+            # PIL → numpy(OpenCV) 변환
+            overlay = np.array(pil_img)
+
+            # 프레임 위에 오버레이 덮기
+            draw_frame = cv2.addWeighted(draw_frame, 0.2, overlay, 0.8, 0)
+
+        # 프레임을 JPEG 인코딩
+        _, buffer = cv2.imencode('.jpg', draw_frame)
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+
     cap.release()
 
 def pose_estimation_feed(request):
