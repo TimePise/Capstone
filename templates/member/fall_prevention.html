@@ -1,67 +1,56 @@
 {% extends "member/base.html" %}
-<!-- prettier-ignore-start -->
+<!--pritter-->
 {% block title %}낙상 감지 시스템{% endblock %}
-<!-- prettier-ignore-end -->
-
+<!--pritter-->
 {% block content %}
 <h2>낙상 감지 시스템</h2>
 
-<!-- 카메라 & 버튼 래퍼 -->
-<div
-  id="camera-wrapper"
-  style="
-    position: relative;
-    width: 800px;
-    height: 500px;
-    background: black;
-    margin-bottom: 20px;
-  "
->
-  <img
-    src="{% url 'pose_estimation_feed' %}"
-    style="width: 100%; height: 100%; object-fit: cover"
-  />
-
-  <!-- 보호모드 버튼 -->
-  <button
-    id="privacy-btn"
-    style="
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      padding: 6px 10px; /* ✅ 사이즈 줄이기 */
-      font-size: 12px; /* ✅ 글자 크기 줄이기 */
-      background: purple;
-      color: white;
-      border: none;
-      border-radius: 4px; /* ✅ 둥글게 (optional) */
-      cursor: pointer;
-    "
+<div style="display: flex; gap: 20px">
+  <!-- 📷 카메라 스트림 + 버튼 -->
+  <div
+    id="camera-wrapper"
+    style="position: relative; width: 800px; height: 500px; background: black"
   >
-    보호모드
-  </button>
+    <img
+      id="pose-stream"
+      src="{% url 'pose_estimation_feed' %}"
+      style="width: 100%; height: 100%; object-fit: cover"
+    />
 
-  <!-- 테스트 알림 버튼 -->
-  <button
-    id="alert-btn"
-    style="
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      padding: 6px 10px;
-      font-size: 12px;
-      background: orange;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    "
-  >
-    테스트 알림
-  </button>
+    <!-- 보호모드 버튼 -->
+    <button
+      id="privacy-btn"
+      style="
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 6px 10px;
+        font-size: 12px;
+        background: purple;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        z-index: 11;
+      "
+    >
+      보호모드
+    </button>
+  </div>
+
+  <!-- 🧠 낙상 상태 표시 -->
+  <div style="width: 300px">
+    <h3>낙상 감지 상태</h3>
+    <div
+      id="fall-status"
+      style="font-size: 20px; font-weight: bold; color: green"
+    >
+      정상입니다
+    </div>
+  </div>
 </div>
 
-<!-- ✅ Toastr 스타일 CDN 추가 -->
+<!-- toastr 알림 CDN -->
 <link
   href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"
   rel="stylesheet"
@@ -76,31 +65,31 @@
     timeOut: "1500",
   };
 
-  // 보호모드 버튼 클릭 시
+  const statusBox = document.getElementById("fall-status");
+
+  // ✅ 보호모드 토글 요청만 보내고 화면 오버레이는 제거
   document.getElementById("privacy-btn").addEventListener("click", function () {
     fetch("{% url 'toggle_privacy_mode' %}")
       .then((res) => res.json())
       .then((data) => {
         if (data.privacy_mode) {
-          toastr.success("🔒 보호모드가 활성화되었습니다");
+          toastr.success("🔒 보호모드 활성화");
         } else {
-          toastr.info("🔓 보호모드가 비활성화되었습니다");
+          toastr.info("🔓 보호모드 해제");
         }
       });
   });
 
-  // 테스트 알림 버튼 클릭 시
-  document.getElementById("alert-btn").addEventListener("click", function () {
-    fetch("{% url 'test_fall_alert' %}", {
-      method: "POST",
-      headers: {
-        "X-CSRFToken": "{{ csrf_token }}",
-      },
-    })
+  // ✅ 실시간 낙상 감지 상태 가져오기
+  function pollFallStatus() {
+    fetch("/fall/fall_status/")
       .then((res) => res.json())
       .then((data) => {
-        toastr.warning("📢 " + data.status);
+        statusBox.textContent = data.label;
+        statusBox.style.color = data.fall ? "red" : "green";
       });
-  });
+  }
+
+  setInterval(pollFallStatus, 1000); // 1초마다 감지 상태 갱신
 </script>
 {% endblock %}
