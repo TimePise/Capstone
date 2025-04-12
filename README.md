@@ -1,5 +1,5 @@
 <h2> 현재 프론트 작업</h2>
-
+<li>https://github.com/Changyukim2/front.git</li>
 
 <h2> 현재 백엔드 작업</h2>
 <li>2025.02.12 - 2025.02.15 >> Django Openpose 연결 구축</li>
