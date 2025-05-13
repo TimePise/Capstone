@@ -1,0 +1,7 @@
+Django>=4.0,<5.0
+channels>=4.0,<5.0
+opencv-python
+mediapipe
+torch
+pygame
+# 추가로 필요한 라이브러리 있으면 여기 추가

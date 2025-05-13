@@ -1,53 +1,100 @@
-{% extends "member/base.html" %}
-<!-- prettier-ignore-start -->
-{% block title %}마이페이지{% endblock %}
-<!-- prettier-ignore-start -->
-{% block content %}
-<!-- prettier-ignore-end -->
+{% extends "member/base.html" %} {% block title %}마이페이지{% endblock %}
+{%block content %}
 
-<h2>마이페이지</h2>
+<style>
+  /* 🔁 배경 애니메이션 색상 */
+  body {
+    animation: bgCycle 20s infinite;
+    background-size: cover;
+    transition: background-color 2s ease;
+  }
 
-<div style="border: 1px solid #ccc; padding: 20px; max-width: 500px">
-  <p><strong>이름 :</strong> {{ member.name }}</p>
-  <p><strong>아이디 :</strong> {{ member.member_id }}</p>
-  <p><strong>전화번호 :</strong> {{ member.phone|default_if_none:"-" }}</p>
-  <p><strong>병동명 :</strong> {{ member.ward_name }}</p>
-</div>
+  @keyframes bgCycle {
+    0% {
+      background-color: #f0f8ff;
+    } /* AliceBlue */
+    25% {
+      background-color: #e6f7ff;
+    } /* LightSkyBlue */
+    50% {
+      background-color: #fffaf0;
+    } /* FloralWhite */
+    75% {
+      background-color: #fef6ff;
+    } /* LavenderBlush */
+    100% {
+      background-color: #f0f8ff;
+    }
+  }
 
-<br />
+  .mypage-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 20px;
+  }
 
-<div style="display: flex; gap: 10px; max-width: 500px">
-  <!-- 로그아웃 버튼 -->
-  <form action="{% url 'member_logout' %}" method="get" style="flex: 1">
-    <button
-      type="submit"
-      style="
-        width: 100%;
-        padding: 10px;
-        background: black;
-        color: white;
-        border: none;
-      "
-    >
-      로그아웃
-    </button>
-  </form>
+  .info-box {
+    background-color: rgba(255, 255, 255, 0.85);
+    padding: 30px;
+    max-width: 500px;
+    width: 100%;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    text-align: left;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  }
 
-  <!-- 계정 탈퇴 버튼 -->
-  <form action="{% url 'member_delete' %}" method="get" style="flex: 1">
-    <button
-      type="submit"
-      style="
-        width: 100%;
-        padding: 10px;
-        background: red;
-        color: white;
-        border: none;
-      "
-    >
-      계정 탈퇴
-    </button>
-  </form>
+  .button-group {
+    display: flex;
+    gap: 10px;
+    max-width: 500px;
+    width: 100%;
+    margin-top: 30px;
+  }
+
+  .button-group form {
+    flex: 1;
+  }
+
+  .button-group button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    color: white;
+    cursor: pointer;
+  }
+
+  .logout-btn {
+    background-color: #333;
+  }
+
+  .delete-btn {
+    background-color: #c0392b;
+  }
+</style>
+
+<div class="mypage-container">
+  <h2 style="margin-bottom: 20px">마이페이지</h2>
+
+  <div class="info-box">
+    <p><strong>이름 :</strong> {{ member.name }}</p>
+    <p><strong>아이디 :</strong> {{ member.member_id }}</p>
+    <p><strong>전화번호 :</strong> {{ member.phone|default_if_none:"-" }}</p>
+    <p><strong>병동명 :</strong> {{ member.ward_name|default_if_none:"-" }}</p>
+  </div>
+
+  <div class="button-group">
+    <form action="{% url 'member_logout' %}" method="get">
+      <button type="submit" class="logout-btn">로그아웃</button>
+    </form>
+
+    <form action="{% url 'member_delete' %}" method="get">
+      <button type="submit" class="delete-btn">계정 탈퇴</button>
+    </form>
+  </div>
 </div>
 
 {% endblock %}
