@@ -1,40 +1,129 @@
-<!-- templates/member/fall_record_list.html -->
-{% extends "member/base.html" %}
-<!-- prettier-ignore-start -->
-{% block title %} 낙상 기록 목록 {% endblock %}
-<!-- prettier-ignore-end -->
-{% block content %}
-<h2>낙상 기록 목록</h2>
-<table border="1">
-  <thead>
-    <tr>
-      <th>환자 이름</th>
-      <th>나이</th>
-      <th>호실</th>
-      <th>낙상 일시</th>
-      <th>낙상 단계</th>
-      <th>낙상 부위</th>
-      <th>특이사항</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for record in records %}
-    <tr>
-      <td>{{ record.name }}</td>
-      <td>{{ record.age }}</td>
-      <td>{{ record.room_number }}</td>
-      <td>{{ record.fall_date|date:"Y-m-d H:i" }}</td>
-      <td>{{ record.fall_level }}</td>
-      <td>{{ record.fall_area }}</td>
-      <td>{{ record.note }}</td>
-    </tr>
-    {% empty %}
-    <tr>
-      <td colspan="7">기록이 없습니다.</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-<br />
-<a href="{% url 'fall_record_add' %}">➕ 낙상 기록 추가하기</a>
+{% extends "member/base.html" %} {% block title %}낙상기록 조회{% endblock %}
+{%block content %}
+<style>
+  body {
+    animation: bgCycle 25s infinite;
+    background-size: cover;
+    transition: background-color 2s ease;
+  }
+
+  @keyframes bgCycle {
+    0% {
+      background-color: #f5f5ff;
+    }
+    25% {
+      background-color: #f0f8ff;
+    }
+    50% {
+      background-color: #fffaf0;
+    }
+    75% {
+      background-color: #fef6ff;
+    }
+    100% {
+      background-color: #f5f5ff;
+    }
+  }
+</style>
+
+<div style="max-width: 1000px; margin: 0 auto; padding: 40px 20px">
+  <h2 style="font-size: 28px; font-weight: bold; margin-bottom: 20px">
+    낙상이력 조회
+  </h2>
+
+  <!-- 검색창 -->
+  <form method="GET" style="margin-bottom: 20px; display: flex; gap: 10px">
+    <input
+      type="text"
+      name="name"
+      placeholder="이름을 입력하세요"
+      style="padding: 10px; flex: 1; border: 1px solid #ccc; border-radius: 4px"
+    />
+    <button
+      type="submit"
+      style="
+        padding: 10px 20px;
+        background-color: black;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      "
+    >
+      검색
+    </button>
+  </form>
+
+  <!-- 테이블 -->
+  <table
+    style="
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+      background-color: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    "
+  >
+    <thead>
+      <tr style="background-color: #f3f3f3">
+        <th style="padding: 10px">이름</th>
+        <th style="padding: 10px">나이</th>
+        <th style="padding: 10px">병동/호실</th>
+        <th style="padding: 10px">발생일</th>
+        <th style="padding: 10px">낙상 단계</th>
+        <th style="padding: 10px">낙상 부위</th>
+        <th style="padding: 10px">특이사항</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for record in records %}
+      <tr style="border-top: 1px solid #e0e0e0">
+        <td style="padding: 10px">{{ record.name }}</td>
+        <td style="padding: 10px">{{ record.age }}</td>
+        <td style="padding: 10px">{{ record.room_number }}</td>
+        <td style="padding: 10px">{{ record.fall_date|date:"Y-m-d" }}</td>
+        <td style="padding: 10px">{{ record.fall_level }}</td>
+        <td style="padding: 10px">{{ record.fall_area }}</td>
+        <td style="padding: 10px">{{ record.note }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" style="padding: 20px">기록이 없습니다.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- 안내 문구 -->
+  <p style="margin-top: 16px; color: #666; font-size: 0.95rem">
+    ※ 자세한 정보는
+    <a
+      href="{% url 'test_fall_alert' %}"
+      style="color: #7d40ff; font-weight: bold"
+      >알림확인</a
+    >에서 조회 가능합니다.
+  </p>
+
+  <!-- 낙상 기록 추가 버튼 -->
+  <a
+    href="{% url 'fall_record_add' %}"
+    style="
+      display: inline-block;
+      margin-top: 30px;
+      padding: 12px 24px;
+      background-color: #5a6edc;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    "
+    onmouseover="this.style.backgroundColor='#4051b5'"
+    onmouseout="this.style.backgroundColor='#5a6edc'"
+  >
+    ➕ 낙상 기록 추가하기
+  </a>
+</div>
 {% endblock %}

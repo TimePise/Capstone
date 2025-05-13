@@ -1,95 +1,233 @@
-{% extends "member/base.html" %}
-<!--pritter-->
-{% block title %}낙상 감지 시스템{% endblock %}
-<!--pritter-->
-{% block content %}
-<h2>낙상 감지 시스템</h2>
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>낙상감지시스템</title>
 
-<div style="display: flex; gap: 20px">
-  <!-- 📷 카메라 스트림 + 버튼 -->
-  <div
-    id="camera-wrapper"
-    style="position: relative; width: 800px; height: 500px; background: black"
-  >
-    <img
-      id="pose-stream"
-      src="{% url 'pose_estimation_feed' %}"
-      style="width: 100%; height: 100%; object-fit: cover"
-    />
+    <style>
+      body {
+        margin: 0;
+        font-family: "Noto Sans KR", sans-serif;
+        background-color: #ffffff;
+      }
 
-    <!-- 보호모드 버튼 -->
-    <button
-      id="privacy-btn"
-      style="
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 40px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+
+      .nav-left a {
+        font-size: 1.2rem;
+        font-weight: bold;
+        text-decoration: none;
+        color: #000;
+      }
+
+      .nav-right a {
+        margin-left: 30px;
+        text-decoration: none;
+        color: #000;
+        font-size: 0.95rem;
+      }
+
+      .container {
+        padding: 40px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 30px;
+      }
+
+      .camera-box {
+        position: relative;
+        background-color: black;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .camera-box img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background-color: black;
+        border-radius: 8px;
+      }
+
+      .privacy-overlay {
         position: absolute;
-        top: 10px;
-        left: 10px;
-        padding: 6px 10px;
-        font-size: 12px;
-        background: purple;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: black;
+        opacity: 1;
+        z-index: 10;
+        display: none;
+      }
+
+      .button-wrapper {
+        margin-top: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .protect-button {
+        background-color: #5a6edc;
         color: white;
+        padding: 10px 20px;
+        font-size: 0.95rem;
         border: none;
-        border-radius: 4px;
+        border-radius: 8px;
         cursor: pointer;
-        z-index: 11;
-      "
-    >
-      보호모드
-    </button>
-  </div>
+      }
 
-  <!-- 🧠 낙상 상태 표시 -->
-  <div style="width: 300px">
-    <h3>낙상 감지 상태</h3>
-    <div
-      id="fall-status"
-      style="font-size: 20px; font-weight: bold; color: green"
-    >
-      정상입니다
+      .alert-button {
+        background-color: #fbc500;
+        color: black;
+        padding: 10px 30px;
+        font-weight: bold;
+        font-size: 0.95rem;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      }
+
+      #status-text {
+        font-size: 1rem;
+        font-weight: bold;
+        margin-top: 10px;
+        color: green;
+      }
+
+      #fall-confirm-wrapper {
+        margin-top: 20px;
+        display: none;
+        text-align: center;
+      }
+
+      #fall-confirm-wrapper button {
+        background-color: #d35400;
+        color: white;
+        font-weight: bold;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ✅ 상단 네비게이션 -->
+    <header>
+      <div class="nav-left">
+        <a href="{% url 'member_index' %}">Home</a>
+      </div>
+      <div class="nav-right">
+        <a href="{% url 'mypage' %}">마이페이지</a>
+        <a href="{% url 'fall_record_list' %}">이력조회</a>
+        <a href="{% url 'fall_alert_list' %}">알림확인</a>
+        {% if m_id %}
+        <a href="{% url 'member_logout' %}">로그아웃</a>
+        {% else %}
+        <a href="{% url 'member_login' %}">로그인</a>
+        {% endif %}
+      </div>
+    </header>
+
+    <!-- ✅ 본문 시작 -->
+    <div class="container">
+      <div class="title">낙상감지시스템</div>
+
+      <!-- ✅ 카메라 스트리밍 -->
+      <div class="camera-box" id="camera-box">
+        <img
+          id="camera-stream"
+          src="{% url 'pose_estimation_feed' %}"
+          alt="카메라 스트리밍"
+        />
+        <div class="privacy-overlay" id="privacy-overlay"></div>
+      </div>
+
+      <!-- ✅ 낙상 확인 버튼 -->
+      <div id="fall-confirm-wrapper">
+        <button onclick="resumeCamera()">
+          낙상 알림 확인하고 카메라 다시 보기
+        </button>
+      </div>
+
+      <div id="status-text">정상입니다</div>
+
+      <div class="button-wrapper">
+        <button class="protect-button" onclick="togglePrivacy()">
+          보호모드
+        </button>
+        <button class="alert-button">최근 알림: 낙상 위험 감지!</button>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- toastr 알림 CDN -->
-<link
-  href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"
-  rel="stylesheet"
-/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+      const cameraBox = document.getElementById("camera-box");
+      const cameraStream = document.getElementById("camera-stream");
+      const fallConfirmWrapper = document.getElementById(
+        "fall-confirm-wrapper"
+      );
 
-<script>
-  toastr.options = {
-    closeButton: true,
-    progressBar: true,
-    positionClass: "toast-top-right",
-    timeOut: "1500",
-  };
+      function togglePrivacy() {
+        fetch("{% url 'toggle_privacy_mode' %}")
+          .then((res) => res.json())
+          .then((data) => {
+            const overlay = document.getElementById("privacy-overlay");
+            overlay.style.display = data.privacy_mode ? "block" : "none";
+          })
+          .catch((err) => console.error("보호모드 전환 실패", err));
+      }
 
-  const statusBox = document.getElementById("fall-status");
+      function pollFallStatus() {
+        fetch("{% url 'fall_status' %}")
+          .then((res) => res.json())
+          .then((data) => {
+            const status = document.getElementById("status-text");
+            status.textContent = data.label;
+            status.style.color = data.fall ? "red" : "green";
+          })
+          .catch((err) => console.error("상태 요청 실패:", err));
+      }
 
-  // ✅ 보호모드 토글 요청만 보내고 화면 오버레이는 제거
-  document.getElementById("privacy-btn").addEventListener("click", function () {
-    fetch("{% url 'toggle_privacy_mode' %}")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.privacy_mode) {
-          toastr.success("🔒 보호모드 활성화");
-        } else {
-          toastr.info("🔓 보호모드 해제");
-        }
-      });
-  });
+      // ✅ 주기적 상태 체크
+      setInterval(pollFallStatus, 1000);
 
-  // ✅ 실시간 낙상 감지 상태 가져오기
-  function pollFallStatus() {
-    fetch("/fall/fall_status/")
-      .then((res) => res.json())
-      .then((data) => {
-        statusBox.textContent = data.label;
-        statusBox.style.color = data.fall ? "red" : "green";
-      });
-  }
+      // ✅ WebSocket 알림 수신 처리
+      const socket = new WebSocket("ws://127.0.0.1:8000/ws/fall_alert/");
 
-  setInterval(pollFallStatus, 1000); // 1초마다 감지 상태 갱신
-</script>
-{% endblock %}
+      socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        alert(data.message); // 팝업 알림
+
+        // ✅ 카메라 끄기
+        cameraStream.src = "";
+        cameraBox.style.display = "none";
+
+        // ✅ 확인 버튼 보이기
+        fallConfirmWrapper.style.display = "block";
+      };
+
+      // ✅ 확인 버튼 클릭 시 카메라 다시 연결
+      function resumeCamera() {
+        cameraStream.src = "{% url 'pose_estimation_feed' %}";
+        cameraBox.style.display = "block";
+        fallConfirmWrapper.style.display = "none";
+      }
+    </script>
+  </body>
+</html>

@@ -22,12 +22,13 @@ urlpatterns = [
 
     # ✅ fall 앱 내부 기능 추가 (스트리밍 등)
     path('fall_prevention/', include('fall.urls')),
-
     path('privacy/', views.toggle_privacy_mode, name='toggle_privacy_mode'),
 
     # 낙상 기록
     path('fall/add/', views.fall_record_add, name='fall_record_add'),
     path('fall/list/', views.fall_record_list, name='fall_record_list'),
+    path('fall/alert/list/', views.fall_alert_list, name='fall_alert_list'),  # ✅ 진짜 알림 목록
+    path('fall/alert/test/', views.test_fall_alert, name='test_fall_alert'),
 
     # ✅ WebSocket 테스트용 경로
     path('test/alert/', views.test_fall_alert, name='test_fall_alert'),

@@ -1,24 +1,152 @@
-<!-- templates/member/member_reg.html -->
 {% extends "member/base.html" %} {% block title %}회원가입{% endblock %}
-<!-- prettier-ignore-start -->
+<!--prittier-->
 {%block content %}
-<!-- prettier-ignore-end -->
-<h2>회원가입</h2>
-<form method="POST">
-  {% csrf_token %}
-  <label>아이디: <input type="text" name="member_id" required /></label
-  ><br /><br />
-  <label>비밀번호: <input type="password" name="passwd" required /></label
-  ><br /><br />
-  <label>이름: <input type="text" name="name" required /></label><br /><br />
-  <label>병동명: <input type="text" name="ward_name" required /></label
-  ><br /><br />
-  <label>전화번호: <input type="tel" name="phone" required /></label
-  ><br /><br />
+<h2 style="text-align: center; margin-bottom: 30px">회원가입</h2>
 
-  <button type="submit">회원가입</button>
+<form method="POST" style="max-width: 400px; margin: 0 auto">
+  {% csrf_token %}
+
+  <!-- 아이디 -->
+  <input
+    type="text"
+    name="member_id"
+    placeholder="아이디"
+    required
+    style="
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+    "
+  />
+
+  <!-- 비밀번호 -->
+  <input
+    type="password"
+    name="passwd"
+    placeholder="비밀번호"
+    required
+    style="
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+    "
+  />
+
+  <!-- 이름 -->
+  <input
+    type="text"
+    name="name"
+    placeholder="이름"
+    required
+    style="
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+    "
+  />
+
+  <!-- 병동명 -->
+  <input
+    type="text"
+    name="ward_name"
+    placeholder="병동명"
+    required
+    style="
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+    "
+  />
+
+  <!-- 전화번호 -->
+  <input
+    id="phone"
+    type="tel"
+    name="phone"
+    placeholder="전화번호"
+    required
+    style="
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+    "
+  />
+
+  <!-- 인증번호 입력 + 버튼 -->
+  <div style="display: flex; gap: 8px; margin-bottom: 20px">
+    <input
+      type="text"
+      name="code"
+      placeholder="인증번호 입력"
+      required
+      style="flex: 2; padding: 12px; border: 1px solid #ccc"
+    />
+    <button
+      type="button"
+      onclick="sendVerificationCode()"
+      style="
+        flex: 1;
+        padding: 12px;
+        background: #eee;
+        border: 1px solid #ccc;
+        cursor: pointer;
+      "
+    >
+      인증번호 받기
+    </button>
+  </div>
+
+  <!-- 가입 버튼 -->
+  <button
+    type="submit"
+    style="
+      width: 100%;
+      padding: 14px;
+      background: black;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+    "
+  >
+    가입하기
+  </button>
 </form>
 
 {% if message %}
-<p style="color: red">{{ message }}</p>
-{% endif %} {% endblock %}
+<p style="color: red; text-align: center; margin-top: 20px">{{ message }}</p>
+{% endif %}
+
+<!-- ✅ 인증번호 요청 Ajax 스크립트 -->
+<script>
+  function sendVerificationCode() {
+    const phone = document.getElementById("phone").value;
+    if (!phone) {
+      alert("전화번호를 입력하세요.");
+      return;
+    }
+
+    fetch("{% url 'send_verification_code' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken": "{{ csrf_token }}",
+      },
+      body: new URLSearchParams({ phone: phone }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        alert(data.status);
+      })
+      .catch((error) => {
+        alert("인증번호 전송 실패. 콘솔을 확인해주세요.");
+        console.error("Error:", error);
+      });
+  }
+</script>
+{% endblock %}

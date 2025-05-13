@@ -1,21 +1,153 @@
-<!-- templates/member/fall_record_add.html -->
-{% extends "member/base.html" %} {% block title %}낙상 기록 등록{% endblock %}
+{% extends "member/base.html" %} {% block title %}낙상 기록 추가{% endblock %}
 {% block content %}
-<h2>낙상 기록 등록</h2>
+<div style="max-width: 640px; margin: 60px auto; padding: 0 20px">
+  <h2
+    style="
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 30px;
+      text-align: center;
+    "
+  >
+    낙상 기록 추가
+  </h2>
 
-<form method="POST">
-  {% csrf_token %} 이름: <input type="text" name="name" /><br /><br />
-  나이: <input type="number" name="age" /><br /><br />
-  호실: <input type="text" name="room_number" /><br /><br />
-  낙상일시: <input type="datetime-local" name="fall_date" /><br /><br />
-  낙상 단계:
-  <select name="fall_level">
-    <option value="경미">경미</option>
-    <option value="중간">중간</option>
-    <option value="심각">심각</option></select
-  ><br /><br />
-  낙상 부위: <input type="text" name="fall_area" /><br /><br />
-  특이사항: <textarea name="note"></textarea><br /><br />
-  <button type="submit">저장</button>
-</form>
+  <form method="POST" style="display: flex; flex-direction: column; gap: 16px">
+    {% csrf_token %}
+
+    <div>
+      <label style="display: block; margin-bottom: 6px; font-weight: 500"
+        >이름</label
+      >
+      <input
+        type="text"
+        name="name"
+        required
+        style="
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        "
+      />
+    </div>
+
+    <div>
+      <label style="display: block; margin-bottom: 6px; font-weight: 500"
+        >나이</label
+      >
+      <input
+        type="number"
+        name="age"
+        required
+        style="
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        "
+      />
+    </div>
+
+    <div>
+      <label style="display: block; margin-bottom: 6px; font-weight: 500"
+        >병동/호실</label
+      >
+      <input
+        type="text"
+        name="room_number"
+        required
+        style="
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        "
+      />
+    </div>
+
+    <div>
+      <label style="display: block; margin-bottom: 6px; font-weight: 500"
+        >발생일</label
+      >
+      <input
+        type="date"
+        name="fall_date"
+        required
+        style="
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        "
+      />
+    </div>
+
+    <div>
+      <label style="display: block; margin-bottom: 6px; font-weight: 500"
+        >낙상 단계</label
+      >
+      <input
+        type="text"
+        name="fall_level"
+        required
+        style="
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        "
+      />
+    </div>
+
+    <div>
+      <label style="display: block; margin-bottom: 6px; font-weight: 500"
+        >낙상 부위</label
+      >
+      <input
+        type="text"
+        name="fall_area"
+        required
+        style="
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        "
+      />
+    </div>
+
+    <div>
+      <label style="display: block; margin-bottom: 6px; font-weight: 500"
+        >특이사항</label
+      >
+      <textarea
+        name="note"
+        rows="4"
+        style="
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        "
+      ></textarea>
+    </div>
+
+    <button
+      type="submit"
+      style="
+        margin-top: 20px;
+        padding: 12px;
+        background-color: black;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+      "
+    >
+      저장하기
+    </button>
+  </form>
+</div>
 {% endblock %}
