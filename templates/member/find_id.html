@@ -1,6 +1,7 @@
 {% extends "member/base.html" %}
 <!-- prettier-ignore-start -->
 {% block title %}아이디 찾기{% endblock %} {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <h2 style="text-align: center; font-size: 36px; font-weight: bold">
   아이디 찾기
 </h2>
@@ -77,7 +78,7 @@
     .addEventListener("click", function () {
       const phone = document.querySelector('input[name="phone"]').value;
       if (!phone) {
-        alert("전화번호를 입력해주세요.");
+        Swal.fire({ icon: "warning", text: "전화번호를 입력해주세요." });
         return;
       }
 
@@ -91,10 +92,19 @@
       })
         .then((res) => res.json())
         .then((data) => {
-          alert("📩 인증번호가 전송되었습니다.");
+          Swal.fire({
+            icon: "success",
+            title: "인증번호 전송 완료",
+            text: "📩 인증번호가 전송되었습니다!",
+            confirmButtonText: "확인",
+          });
         })
         .catch((err) => {
-          alert("🚫 인증번호 전송 실패");
+          Swal.fire({
+            icon: "error",
+            title: "전송 실패",
+            text: "🚫 인증번호 전송에 실패했습니다.",
+          });
         });
     });
 
@@ -130,7 +140,7 @@
           document.getElementById("error").textContent = "";
           document.getElementById(
             "result"
-          ).textContent = `✔️ 고객님의 아이디는 ${data.member_id} 입니다.`;
+          ).textContent = `고객님의 아이디는 ${data.member_id} 입니다.`;
         })
         .catch(async (err) => {
           const errData = await err.json();

@@ -71,7 +71,37 @@ def member_reg(request):
             phone=phone,
         )
         UserLog.objects.create(member=member, action="signup")
+
+        # ✅ 회원가입 성공 세션 플래그 저장
+        request.session["signup_success"] = True
         return redirect("member_login")
+
+
+def member_login(request):
+    context = {}
+
+    # ✅ 회원가입 직후라면 팝업 띄울 수 있도록 세션 플래그 읽기
+    if request.session.get("signup_success"):
+        context["signup_success"] = True
+        del request.session["signup_success"]
+
+    if request.method == "GET":
+        return render(request, "member/login.html", context)
+
+    elif request.method == "POST":
+        member_id = request.POST.get("member_id")
+        passwd = request.POST.get("passwd")
+
+        try:
+            member = Member.objects.get(member_id=member_id)
+        except Member.DoesNotExist:
+            return render(request, "member/login.html", {"message": "존재하지 않는 아이디입니다."})
+
+        if member.passwd != passwd:
+            return render(request, "member/login.html", {"message": "비밀번호가 일치하지 않습니다."})
+
+        request.session["m_id"] = member.member_id
+        return redirect("member_main")
 
 # ✅ 로그인
 @csrf_exempt
@@ -182,13 +212,20 @@ def mypage(request):
         return redirect("member_login")
 
     member = get_object_or_404(Member, member_id=member_id)
+
+    # 전화번호 하이픈 처리
+    phone = member.phone or "-"
+    if phone and phone.isdigit() and len(phone) == 11:
+        phone = f"{phone[:3]}-{phone[3:7]}-{phone[7:]}"
+    
+    # 병동명 처리
+    ward_name = f"{member.ward_name}병동" if member.ward_name else "-"
+
     return render(request, "member/mypage.html", {
         "member": member,
-        "name": member.name,
-        "member_id": member.member_id,
-        "phone": member.phone or "정보 없음",
+        "formatted_phone": phone,
+        "formatted_ward": ward_name,
     })
-
 # ✅ 낙상 감지 페이지
 def fall_prevention(request):
     if not request.session.get("m_id"):

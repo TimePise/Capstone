@@ -138,10 +138,6 @@ def generate_pose_estimation():
                 connection_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=3)
             )
 
-        # ✅ 텍스트는 보호모드 OFF 일 때만 보여줌
-        if not privacy_mode:
-            cv2.putText(frame, label, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, color, 3)
-
         _, buffer = cv2.imencode('.jpg', frame)
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
