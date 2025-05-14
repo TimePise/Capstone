@@ -82,8 +82,8 @@
   <div class="info-box">
     <p><strong>이름 :</strong> {{ member.name }}</p>
     <p><strong>아이디 :</strong> {{ member.member_id }}</p>
-    <p><strong>전화번호 :</strong> {{ member.phone|default_if_none:"-" }}</p>
-    <p><strong>병동명 :</strong> {{ member.ward_name|default_if_none:"-" }}</p>
+    <p><strong>전화번호 :</strong> {{ formatted_phone }}</p>
+    <p><strong>병동명 :</strong> {{ formatted_ward }}</p>
   </div>
 
   <div class="button-group">
