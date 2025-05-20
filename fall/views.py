@@ -57,6 +57,8 @@ def fall_status(request):
 # 영상 스트리밍
 def generate_pose_estimation():
     global alarm_played, privacy_mode, last_fall_label, last_fall_pred
+    from .models import FallAlert  # ⬅️ 함수 안에 import (중복방지용)
+    
     sequence = []
     prev_zs = None
 
@@ -74,11 +76,10 @@ def generate_pose_estimation():
         rgb = cv2.cvtColor(original_frame, cv2.COLOR_BGR2RGB)
         result = pose.process(rgb)
 
-        # ✅ 보호모드 여부에 따라 배경 설정
         if privacy_mode:
-            frame = np.zeros_like(original_frame)  # 검정 배경
+            frame = np.zeros_like(original_frame)
         else:
-            frame = original_frame.copy()  # 일반 배경
+            frame = original_frame.copy()
 
         label = "정상입니다"
         color = (0, 255, 0)
@@ -119,23 +120,41 @@ def generate_pose_estimation():
                         label = f"{part} 중심 낙상 발생"
                         color = (0, 0, 255)
                         threading.Thread(target=play_alarm, daemon=True).start()
+
+                        # ✅ DB에 알림 저장
+                        from .models import FallAlert
+                        FallAlert.objects.create(
+                        message=label,
+                        part=part,
+                        fall_level="심각",        # 예시 값
+                        name="환자A",             # 예시 값
+                        room_number="101호",      # 예시 값
+                        is_read=False
+)
+
+
                     else:
                         label = "정상입니다"
                         color = (0, 255, 0)
                         alarm_played = False
 
-        # ✅ 상태 저장
         last_fall_label = label
         last_fall_pred = fall_pred
 
-        # ✅ 랜드마크는 항상 표시
         if result.pose_landmarks:
+            if privacy_mode:
+                landmark_spec = mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=4, circle_radius=4)
+                connection_spec = mp_drawing.DrawingSpec(color=(255, 255, 255), thickness=3)
+            else:
+                landmark_spec = mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=4, circle_radius=4)
+                connection_spec = mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=3)
+
             mp_drawing.draw_landmarks(
                 frame,
                 result.pose_landmarks,
                 mp_pose.POSE_CONNECTIONS,
-                landmark_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=4, circle_radius=4),
-                connection_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=3)
+                landmark_drawing_spec=landmark_spec,
+                connection_drawing_spec=connection_spec
             )
 
         _, buffer = cv2.imencode('.jpg', frame)
@@ -143,7 +162,6 @@ def generate_pose_estimation():
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
     cap.release()
-
 
 
 
