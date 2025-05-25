@@ -1,4 +1,3 @@
-# fall/apps.py
 from django.apps import AppConfig
 
 class FallConfig(AppConfig):
@@ -6,5 +5,9 @@ class FallConfig(AppConfig):
     name = 'fall'
 
     def ready(self):
-        from .views import start_pose_thread_once
-        start_pose_thread_once()  # ✅ 반드시 이 줄이 있어야 함
+        print("🌀카메라 작동 ")
+        try:
+            from .views import start_pose_thread_once
+            start_pose_thread_once()
+        except Exception as e:
+            print("❌ 감지 쓰레드 실행 실패:", e)

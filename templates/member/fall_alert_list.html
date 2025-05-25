@@ -16,11 +16,10 @@
     {% for alert in alerts %}
     <div
       style="
-        background-color: {% if alert.fall_level == '심각' %}#e74c3c
-                           {% elif alert.fall_level == '중간' %}#3498db
-                           {% elif alert.fall_level == '경미' %}#f1c40f
-                           {% else %}#bdc3c7{% endif %};
-        color: white;
+        background-color: {% if alert.fall_level == '고위험' %}#e74c3c
+                          {% elif alert.fall_level == '중위험' %}#3498db
+                          {% else %}#f1c40f{% endif %};
+        color: {% if alert.fall_level == '저위험' %}#333{% else %}white{% endif %};
         padding: 20px;
         border-radius: 12px;
         margin-bottom: 30px;
@@ -42,17 +41,37 @@
 <script>
   const alertContainer = document.getElementById("alert-container");
 
-  // ✅ SSE로 실시간 알림 수신
+  // ✅ SSE 연결
   const sse = new EventSource("{% url 'fall_alert_stream' %}");
 
   sse.onmessage = function (event) {
-    const message = event.data;
+    const data = JSON.parse(event.data);
 
-    // 메시지를 텍스트로만 받는 경우 파싱이 없기 때문에 기본값 사용
+    // ✅ 날짜 포맷 변환
+    const timeText = new Date(data.timestamp).toLocaleString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    // ✅ 색상 설정
+    let bgColor = "#bdc3c7";
+    let textColor = "white";
+    if (data.fall_level === "고위험") bgColor = "#e74c3c";
+    else if (data.fall_level === "중위험") bgColor = "#3498db";
+    else {
+      bgColor = "#f1c40f";
+      textColor = "#333";
+    }
+
+    // ✅ 카드 생성
     const newAlert = document.createElement("div");
     newAlert.style = `
-      background-color: #e74c3c;
-      color: white;
+      background-color: ${bgColor};
+      color: ${textColor};
       padding: 20px;
       border-radius: 12px;
       margin-bottom: 30px;
@@ -60,9 +79,12 @@
     `;
 
     newAlert.innerHTML = `
-      <p><strong>🆕 실시간 알림</strong></p>
-      <p><strong>내용:</strong> ${message}</p>
-      <p><em>방금 전 발생한 낙상입니다.</em></p>
+      <p style="margin-bottom: 10px;"><strong style="color: #00bfff;">🆕 실시간 알림</strong></p>
+      <p><strong>환자명:</strong> ${data.name}</p>
+      <p><strong>병동/호실:</strong> ${data.room_number}</p>
+      <p><strong>낙상 단계:</strong> ${data.fall_level}</p>
+      <p><strong>낙상 부위:</strong> ${data.part}</p>
+      <p><strong>시간:</strong> ${timeText}</p>
     `;
 
     alertContainer.prepend(newAlert);

@@ -89,6 +89,51 @@
   </div>
 </div>
 
+<!-- ✅ 커스텀 알림 모달 -->
+<div
+  id="alert-modal"
+  style="
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  "
+>
+  <div
+    id="alert-modal-box"
+    style="
+      padding: 30px 40px;
+      border-radius: 12px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    "
+  >
+    <p id="alert-message" style="font-size: 18px; margin-bottom: 20px"></p>
+    <button
+      onclick="closeAlert()"
+      style="
+        background-color: #fff;
+        color: #333;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      "
+    >
+      확인
+    </button>
+  </div>
+</div>
+
 <script>
   function togglePrivacy() {
     fetch("{% url 'toggle_privacy_mode' %}")
@@ -113,14 +158,40 @@
 
   setInterval(pollFallStatus, 1000);
 
-  // ✅ SSE 연결
+  function showCustomAlert(message, level) {
+    const modal = document.getElementById("alert-modal");
+    const box = document.getElementById("alert-modal-box");
+    const msg = document.getElementById("alert-message");
+
+    msg.textContent = message;
+    modal.style.display = "flex";
+
+    if (level === "고위험") {
+      box.style.backgroundColor = "#e74c3c";
+      msg.style.color = "white";
+    } else if (level === "중위험") {
+      box.style.backgroundColor = "#3498db";
+      msg.style.color = "white";
+    } else {
+      box.style.backgroundColor = "#f1c40f";
+      msg.style.color = "#333";
+    }
+  }
+
+  function closeAlert() {
+    document.getElementById("alert-modal").style.display = "none";
+  }
+
   const sse = new EventSource("{% url 'fall_alert_stream' %}");
+
   sse.onmessage = function (event) {
-    alert(event.data);
+    const data = JSON.parse(event.data);
+    showCustomAlert(data.message, data.fall_level);
   };
+
   sse.onerror = function (err) {
     console.error("SSE 연결 실패:", err);
-    sse.close(); // 필요 시 재연결 로직 추가 가능
+    sse.close();
   };
 </script>
 {% endblock %}

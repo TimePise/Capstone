@@ -5,6 +5,7 @@ import cv2
 import mediapipe as mp
 import os
 import threading
+import json
 from django.conf import settings
 from .models import FallAlert
 from channels.layers import get_channel_layer
@@ -14,13 +15,14 @@ import pygame
 import time
 from datetime import datetime
 
+
 pose_thread_started = False
 
 def start_pose_thread_once():
     global pose_thread_started
     if not pose_thread_started:
         print("📡 낙상 감지 쓰레드 시작됨")
-        t = threading.Thread(target=generate_pose_estimation, daemon=True)
+        t = threading.Thread(target=generate_fall_detection_loop, daemon=True)
         t.start()
         pose_thread_started = True
 
@@ -68,10 +70,9 @@ def fall_status(request):
 def reset_alert_lock(request):
     return JsonResponse({'status': 'reset complete'})
 
-def generate_pose_estimation():
+# ✅ 감지 전용 루프 (yield 없음)
+def generate_fall_detection_loop():
     global privacy_mode, last_fall_label, last_fall_pred, alarm_cooldown
-    from .models import FallAlert
-
     sequence = []
     prev_zs = None
     cap = cv2.VideoCapture(0)
@@ -81,19 +82,15 @@ def generate_pose_estimation():
         return
 
     try:
-        while cap.isOpened():
+        while True:
             ret, original_frame = cap.read()
             if not ret:
                 break
 
-            original_frame = cv2.flip(original_frame, 1)
             rgb = cv2.cvtColor(original_frame, cv2.COLOR_BGR2RGB)
             result = pose.process(rgb)
 
-            frame = np.zeros_like(original_frame) if privacy_mode else original_frame.copy()
-
             label = "정상입니다"
-            color = (0, 255, 0)
             fall_pred = 0
 
             if result.pose_landmarks:
@@ -133,15 +130,22 @@ def generate_pose_estimation():
                                 }
                                 part = min(z_parts, key=z_parts.get)
                                 label = f"{part} 중심 낙상 발생"
-                                color = (0, 0, 255)
                                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                                # 낙상 위험도 분류
+                                if part == "머리":
+                                    fall_level = "고위험"
+                                elif part == "골반":
+                                    fall_level = "중위험"
+                                else:
+                                    fall_level = "저위험"
 
                                 threading.Thread(target=play_alarm, daemon=True).start()
 
                                 FallAlert.objects.create(
                                     message=label,
                                     part=part,
-                                    fall_level="심각",
+                                    fall_level=fall_level,
                                     name="환자A",
                                     room_number="101호",
                                     is_read=False
@@ -155,49 +159,15 @@ def generate_pose_estimation():
                                         "message": label,
                                         "name": "환자A",
                                         "room_number": "101호",
-                                        "fall_level": "심각",
+                                        "fall_level": fall_level,
                                         "part": part,
                                         "timestamp": timestamp
                                     }
                                 )
-                        else:
-                            label = "정상입니다"
-                            color = (0, 255, 0)
-
             last_fall_label = label
             last_fall_pred = fall_pred
 
-            if result.pose_landmarks:
-                landmark_spec = mp_drawing.DrawingSpec(
-                    color=(255, 255, 255) if privacy_mode else (0, 255, 255),
-                    thickness=4, circle_radius=4
-                )
-                connection_spec = mp_drawing.DrawingSpec(
-                    color=(255, 255, 255) if privacy_mode else (0, 255, 255),
-                    thickness=3
-                )
-                mp_drawing.draw_landmarks(
-                    frame,
-                    result.pose_landmarks,
-                    mp_pose.POSE_CONNECTIONS,
-                    landmark_drawing_spec=landmark_spec,
-                    connection_drawing_spec=connection_spec
-                )
-
-            _, buffer = cv2.imencode('.jpg', frame)
-
-            try:
-                yield (
-                    b'--frame\r\n'
-                    b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n'
-                )
-                time.sleep(0.05)
-            except GeneratorExit:
-                print("🛑연결 종료됨")
-                break
-            except Exception as e:
-                print(f"❌ 스트리밍 전송 오류: {e}")
-                break
+            time.sleep(0.05)
 
     except Exception as e:
         print(f"❌ 루프 내부 오류 발생: {e}")
@@ -205,16 +175,47 @@ def generate_pose_estimation():
         cap.release()
         print("📷 카메라 자원 해제 완료")
 
-def pose_estimation_feed(request):
+# ✅ 영상 스트리밍 전용 (사용자가 페이지에서 볼 때)
+def generate_pose_estimation():
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("❌ 카메라 연결 실패")
+        return
+
     try:
-        return StreamingHttpResponse(
-            generate_pose_estimation(),
-            content_type='multipart/x-mixed-replace; boundary=frame',
-        )
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            frame = cv2.flip(frame, 1)
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            result = pose.process(rgb)
+
+            if privacy_mode:
+                frame[:] = (0, 0, 0)
+
+            if result.pose_landmarks:
+                mp_drawing.draw_landmarks(
+                    frame, result.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                    landmark_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2),
+                    connection_drawing_spec=mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
+                )
+
+            _, buffer = cv2.imencode('.jpg', frame)
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            time.sleep(0.05)
     except Exception as e:
         print(f"❌ 스트리밍 오류: {e}")
-        return JsonResponse({"error": "스트리밍 실패"}, status=500)
+    finally:
+        cap.release()
+        print("📷 스트리밍 카메라 해제 완료")
 
+def pose_estimation_feed(request):
+    return StreamingHttpResponse(generate_pose_estimation(), content_type='multipart/x-mixed-replace; boundary=frame')
+
+# ✅ SSE 알림 스트림
 def fall_alert_stream(request):
     def event_stream():
         last_sent = None
@@ -222,7 +223,15 @@ def fall_alert_stream(request):
             alert = FallAlert.objects.filter(is_read=False).order_by('-timestamp').first()
             if alert and alert.timestamp != last_sent:
                 last_sent = alert.timestamp
-                yield f"data: {alert.message}\n\n"
-            time.sleep(1)  # 1초마다 확인
+                payload = {
+                    "message": alert.message,
+                    "name": alert.name,
+                    "room_number": alert.room_number,
+                    "fall_level": alert.fall_level,
+                    "part": alert.part,
+                    "timestamp": alert.timestamp.isoformat()  # ✅ ISO 형식으로 변경
+                }
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            time.sleep(1)
 
     return StreamingHttpResponse(event_stream(), content_type='text/event-stream')
