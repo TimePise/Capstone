@@ -30,6 +30,8 @@
       <p><strong>환자명:</strong> {{ alert.name }}</p>
       <p><strong>병동/호실:</strong> {{ alert.room_number }}</p>
       <p><strong>낙상 단계:</strong> {{ alert.fall_level }}</p>
+      <p><strong>낙상 부위:</strong> {{ alert.part }}</p>
+      <p><strong>시간:</strong> {{ alert.timestamp|date:"Y-m-d H:i:s" }}</p>
     </div>
     {% empty %}
     <p style="text-align: center; color: #666">알림이 없습니다.</p>
@@ -40,11 +42,13 @@
 <script>
   const alertContainer = document.getElementById("alert-container");
 
-  const socket = new WebSocket("ws://127.0.0.1:8000/ws/fall_alert/");
+  // ✅ SSE로 실시간 알림 수신
+  const sse = new EventSource("{% url 'fall_alert_stream' %}");
 
-  socket.onmessage = function (event) {
-    const data = JSON.parse(event.data);
+  sse.onmessage = function (event) {
+    const message = event.data;
 
+    // 메시지를 텍스트로만 받는 경우 파싱이 없기 때문에 기본값 사용
     const newAlert = document.createElement("div");
     newAlert.style = `
       background-color: #e74c3c;
@@ -54,12 +58,19 @@
       margin-bottom: 30px;
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     `;
+
     newAlert.innerHTML = `
       <p><strong>🆕 실시간 알림</strong></p>
-      <p>${data.message}</p>
+      <p><strong>내용:</strong> ${message}</p>
+      <p><em>방금 전 발생한 낙상입니다.</em></p>
     `;
 
     alertContainer.prepend(newAlert);
+  };
+
+  sse.onerror = function (err) {
+    console.error("SSE 연결 실패:", err);
+    sse.close();
   };
 </script>
 {% endblock %}

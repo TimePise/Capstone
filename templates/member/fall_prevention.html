@@ -45,7 +45,7 @@
   .button-wrapper {
     margin-top: 20px;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
   }
 
@@ -59,39 +59,11 @@
     cursor: pointer;
   }
 
-  .alert-button {
-    background-color: #fbc500;
-    color: black;
-    padding: 10px 30px;
-    font-weight: bold;
-    font-size: 0.95rem;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  }
-
   #status-text {
     font-size: 1rem;
     font-weight: bold;
     margin-top: 10px;
     color: green;
-  }
-
-  #fall-confirm-wrapper {
-    margin-top: 20px;
-    display: none;
-    text-align: center;
-  }
-
-  #fall-confirm-wrapper button {
-    background-color: #d35400;
-    color: white;
-    font-weight: bold;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
   }
 </style>
 
@@ -108,26 +80,16 @@
     <div class="privacy-overlay" id="privacy-overlay"></div>
   </div>
 
-  <!-- ✅ 낙상 확인 버튼 -->
-  <div id="fall-confirm-wrapper">
-    <button onclick="resumeCamera()">
-      낙상 알림 확인하고 카메라 다시 보기
-    </button>
-  </div>
-
+  <!-- ✅ 상태 텍스트 -->
   <div id="status-text">정상입니다</div>
 
+  <!-- ✅ 버튼 -->
   <div class="button-wrapper">
     <button class="protect-button" onclick="togglePrivacy()">보호모드</button>
-    <button class="alert-button">최근 알림: 낙상 위험 감지!</button>
   </div>
 </div>
 
 <script>
-  const cameraBox = document.getElementById("camera-box");
-  const cameraStream = document.getElementById("camera-stream");
-  const fallConfirmWrapper = document.getElementById("fall-confirm-wrapper");
-
   function togglePrivacy() {
     fetch("{% url 'toggle_privacy_mode' %}")
       .then((res) => res.json())
@@ -149,29 +111,16 @@
       .catch((err) => console.error("상태 요청 실패:", err));
   }
 
-  // ✅ 주기적 상태 체크
   setInterval(pollFallStatus, 1000);
 
-  // ✅ WebSocket 알림 수신 처리
-  const socket = new WebSocket("ws://127.0.0.1:8000/ws/fall_alert/");
-
-  socket.onmessage = function (event) {
-    const data = JSON.parse(event.data);
-    alert(data.message); // 팝업 알림
-
-    // ✅ 카메라 끄기
-    cameraStream.src = "";
-    cameraBox.style.display = "none";
-
-    // ✅ 확인 버튼 보이기
-    fallConfirmWrapper.style.display = "block";
+  // ✅ SSE 연결
+  const sse = new EventSource("{% url 'fall_alert_stream' %}");
+  sse.onmessage = function (event) {
+    alert(event.data);
   };
-
-  // ✅ 확인 버튼 클릭 시 카메라 다시 연결
-  function resumeCamera() {
-    cameraStream.src = "{% url 'pose_estimation_feed' %}";
-    cameraBox.style.display = "block";
-    fallConfirmWrapper.style.display = "none";
-  }
+  sse.onerror = function (err) {
+    console.error("SSE 연결 실패:", err);
+    sse.close(); // 필요 시 재연결 로직 추가 가능
+  };
 </script>
 {% endblock %}
