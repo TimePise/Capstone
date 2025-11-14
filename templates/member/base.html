@@ -79,7 +79,7 @@
         <a href="{% url 'fall_record_list' %}">이력조회</a>
         <a href="{% url 'fall_alert_list' %}">알림확인</a>
         <a href="{% url 'fall_prevention' %}">감지화면</a>
-        {% if m_id %}
+        {% if request.session.m_id %}
         <a href="{% url 'member_logout' %}">로그아웃</a>
         {% else %}
         <a href="{% url 'member_login' %}">로그인</a>

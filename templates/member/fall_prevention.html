@@ -80,12 +80,11 @@
     <div class="privacy-overlay" id="privacy-overlay"></div>
   </div>
 
-  <!-- ✅ 상태 텍스트 -->
-  <div id="status-text">정상입니다</div>
-
   <!-- ✅ 버튼 -->
   <div class="button-wrapper">
-    <button class="protect-button" onclick="togglePrivacy()">보호모드</button>
+    <button id="privacy-btn" class="protect-button" onclick="togglePrivacy()">
+      보호모드 켜기
+    </button>
   </div>
 </div>
 
@@ -140,7 +139,17 @@
       .then((res) => res.json())
       .then((data) => {
         const overlay = document.getElementById("privacy-overlay");
+        const btn = document.getElementById("privacy-btn");
+
         overlay.style.display = data.privacy_mode ? "block" : "none";
+
+        if (data.privacy_mode) {
+          btn.style.backgroundColor = "#e74c3c";
+          btn.textContent = "보호모드 끄기";
+        } else {
+          btn.style.backgroundColor = "#5a6edc";
+          btn.textContent = "보호모드 켜기";
+        }
       })
       .catch((err) => console.error("보호모드 전환 실패", err));
   }

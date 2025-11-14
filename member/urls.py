@@ -22,7 +22,6 @@ urlpatterns = [
 
     # ✅ fall 앱 내부 기능 추가 (스트리밍 등)
     path('fall_prevention/', include('fall.urls')),
-    path('privacy/', views.toggle_privacy_mode, name='toggle_privacy_mode'),
 
     # 낙상 기록
     path('fall/add/', views.fall_record_add, name='fall_record_add'),

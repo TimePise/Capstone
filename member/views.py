@@ -205,7 +205,7 @@ def fall_prevention(request):
     return render(request, "member/fall_prevention.html", {
         "m_id": request.session.get("m_id", ""),
         "m_name": request.session.get("m_name", ""),
-        "privacy_mode": privacy_mode
+        "privacy_mode": privacy_mode,
     })
 
 # ✅ 실시간 영상 스트리밍
@@ -255,7 +255,7 @@ def fall_record_add(request):
     member = get_object_or_404(Member, member_id=member_id)
 
     if request.method == "GET":
-        return render(request, "member/fall_record_add.html")
+        return render(request, "member/fall_record_add.html",{"m_id": member.member_id})
     elif request.method == "POST":
         FallRecord.objects.create(
             member=member,
@@ -276,9 +276,9 @@ def fall_record_list(request):
         return redirect("member_login")
     member = get_object_or_404(Member, member_id=member_id)
     records = FallRecord.objects.filter(member=member).order_by("-fall_date")
-    return render(request, "member/fall_record_list.html", {"records": records})
+    return render(request, "member/fall_record_list.html", {"records": records,"m_id": member.member_id})
 
-# ✅ 낙상 알림 리스트 (진짜 알림)
+# ✅ 낙상 알림 리스트 
 def fall_alert_list(request):
     member_id = request.session.get("m_id")
     if not member_id:
@@ -286,5 +286,5 @@ def fall_alert_list(request):
 
     member = get_object_or_404(Member, member_id=member_id)
     alerts = FallAlert.objects.filter().order_by("-timestamp")[:50]  # 최근 알림 50개
-    return render(request, "member/fall_alert_list.html", {"alerts": alerts})
+    return render(request, "member/fall_alert_list.html", {"alerts": alerts,"m_id": member.member_id})
 

@@ -15,23 +15,16 @@ import pygame
 import time
 from datetime import datetime
 
-
+# 상태 플래그 및 공유 변수
 pose_thread_started = False
-
-def start_pose_thread_once():
-    global pose_thread_started
-    if not pose_thread_started:
-        print("📡 낙상 감지 쓰레드 시작됨")
-        t = threading.Thread(target=generate_fall_detection_loop, daemon=True)
-        t.start()
-        pose_thread_started = True
+shared_frame = None  # ✅ 스트리밍용 공유 프레임
 
 # 전역 상태
 privacy_mode = False
 last_fall_label = "정상입니다"
 last_fall_pred = 0
 alarm_cooldown = 0
-ALARM_INTERVAL = 5  # 최소 알림 간격 (초 단위)
+ALARM_INTERVAL = 5  # 최소 알림 간격 (초)
 
 # 모델 준비
 SELECTED_IDX = [0, 10, 15, 16, 23, 24]
@@ -70,9 +63,18 @@ def fall_status(request):
 def reset_alert_lock(request):
     return JsonResponse({'status': 'reset complete'})
 
-# ✅ 감지 전용 루프 (yield 없음)
-def generate_fall_detection_loop():
-    global privacy_mode, last_fall_label, last_fall_pred, alarm_cooldown
+# ✅ 감지 백그라운드 스레드 실행 함수
+def start_pose_thread_once():
+    global pose_thread_started
+    if not pose_thread_started:
+        print("📡 낙상 감지 쓰레드 시작됨")
+        t = threading.Thread(target=generate_pose_estimation, daemon=True)
+        t.start()
+        pose_thread_started = True
+
+# ✅ 낙상 감지 루프 (프레임 저장 포함)
+def generate_pose_estimation():
+    global privacy_mode, last_fall_label, last_fall_pred, alarm_cooldown, shared_frame
     sequence = []
     prev_zs = None
     cap = cv2.VideoCapture(0)
@@ -82,12 +84,13 @@ def generate_fall_detection_loop():
         return
 
     try:
-        while True:
+        while cap.isOpened():
             ret, original_frame = cap.read()
             if not ret:
                 break
 
-            rgb = cv2.cvtColor(original_frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.flip(original_frame, 1)
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             result = pose.process(rgb)
 
             label = "정상입니다"
@@ -132,7 +135,6 @@ def generate_fall_detection_loop():
                                 label = f"{part} 중심 낙상 발생"
                                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                                # 낙상 위험도 분류
                                 if part == "머리":
                                     fall_level = "고위험"
                                 elif part == "골반":
@@ -164,33 +166,9 @@ def generate_fall_detection_loop():
                                         "timestamp": timestamp
                                     }
                                 )
+
             last_fall_label = label
             last_fall_pred = fall_pred
-
-            time.sleep(0.05)
-
-    except Exception as e:
-        print(f"❌ 루프 내부 오류 발생: {e}")
-    finally:
-        cap.release()
-        print("📷 카메라 자원 해제 완료")
-
-# ✅ 영상 스트리밍 전용 (사용자가 페이지에서 볼 때)
-def generate_pose_estimation():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("❌ 카메라 연결 실패")
-        return
-
-    try:
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            frame = cv2.flip(frame, 1)
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            result = pose.process(rgb)
 
             if privacy_mode:
                 frame[:] = (0, 0, 0)
@@ -202,20 +180,28 @@ def generate_pose_estimation():
                     connection_drawing_spec=mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
                 )
 
-            _, buffer = cv2.imencode('.jpg', frame)
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            shared_frame = frame.copy()  # ✅ 최신 프레임 저장
+
             time.sleep(0.05)
+
     except Exception as e:
-        print(f"❌ 스트리밍 오류: {e}")
+        print(f"❌ 통합 루프 오류 발생: {e}")
     finally:
         cap.release()
-        print("📷 스트리밍 카메라 해제 완료")
+        print("📷 카메라 자원 해제 완료")
 
+# ✅ 프레임만 보여주는 스트리밍 함수
 def pose_estimation_feed(request):
-    return StreamingHttpResponse(generate_pose_estimation(), content_type='multipart/x-mixed-replace; boundary=frame')
+    def stream_shared_frame():
+        while True:
+            if shared_frame is not None:
+                _, buffer = cv2.imencode('.jpg', shared_frame)
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            time.sleep(0.05)
+    return StreamingHttpResponse(stream_shared_frame(), content_type='multipart/x-mixed-replace; boundary=frame')
 
-# ✅ SSE 알림 스트림
+# ✅ SSE 스트리밍 알림
 def fall_alert_stream(request):
     def event_stream():
         last_sent = None
@@ -229,9 +215,8 @@ def fall_alert_stream(request):
                     "room_number": alert.room_number,
                     "fall_level": alert.fall_level,
                     "part": alert.part,
-                    "timestamp": alert.timestamp.isoformat()  # ✅ ISO 형식으로 변경
+                    "timestamp": alert.timestamp.isoformat()
                 }
                 yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             time.sleep(1)
-
     return StreamingHttpResponse(event_stream(), content_type='text/event-stream')
