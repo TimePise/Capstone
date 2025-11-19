@@ -1,164 +1,69 @@
+{% extends "member/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <title>로그인</title>
-    <!-- ✅ SweetAlert2 CDN 추가 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <style>
-      body {
-        font-family: "Noto Sans KR", sans-serif;
-        background: #fff;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-      }
-
-      .login-container {
-        border: 1px solid #ddd;
-        padding: 40px;
-        width: 400px;
-        border-radius: 6px;
-      }
-
-      h2 {
-        text-align: center;
-        font-size: 32px;
-        margin-bottom: 30px;
-      }
-
-      .input-group {
-        display: flex;
-        align-items: center;
-        margin-bottom: 20px;
-        border: 1px solid #aaa;
-        background: #f2f2f2;
-        position: relative;
-      }
-
-      .input-group .icon {
-        width: 24px;
-        height: 24px;
-        margin: 10px;
-      }
-
-      .input-group input {
-        flex: 1;
-        border: none;
-        outline: none;
-        background: transparent;
-        padding: 12px;
-        font-size: 16px;
-      }
-
-      .toggle-eye {
-        width: 24px;
-        height: 24px;
-        margin-right: 12px;
-        cursor: pointer;
-      }
-
-      .login-button {
-        width: 100%;
-        background: #000;
-        color: #fff;
-        font-size: 18px;
-        padding: 12px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-      }
-
-      .link-group {
-        text-align: center;
-        margin-top: 20px;
-        font-size: 14px;
-      }
-
-      .link-group a {
-        text-decoration: none;
-        color: #000;
-        margin: 0 10px;
-      }
-    </style>
-  </head>
-  <body>
-    <!-- ✅ 로그인 박스를 숨겼다가 나중에 보여줍니다 -->
-    <div id="login-box" style="display: none">
-      <div class="login-container">
-        <h2>로그인</h2>
-        <form method="POST" action="/member/login/">
-          {% csrf_token %}
-          <div class="input-group">
-            <img
-              src="{% static 'images/login.png' %}"
-              class="icon"
-              alt="아이디 아이콘"
-            />
-            <input type="text" name="member_id" placeholder="아이디" required />
-          </div>
-          <div class="input-group">
-            <img
-              src="{% static 'images/password.png' %}"
-              class="icon"
-              alt="비밀번호 아이콘"
-            />
-            <input
-              type="password"
-              name="passwd"
-              id="password"
-              placeholder="비밀번호"
-              required
-            />
-            <img
-              src="{% static 'images/hide.png' %}"
-              class="toggle-eye"
-              id="toggleEye"
-              onclick="togglePassword()"
-              alt="비밀번호 보기/숨기기"
-            />
-          </div>
-          <button type="submit" class="login-button">로그인</button>
-        </form>
-        <div class="link-group">
-          <a href="/member/find/id/">아이디 찾기</a> |
-          <a href="/member/find/password/">비밀번호 찾기</a> |
-          <a href="/member/reg/">회원가입</a>
-        </div>
-      </div>
+{% block title %}로그인{% endblock %}
+{% block content %}
+<div class="auth-wrapper">
+  <div class="auth-card">
+    <div>
+      <p class="auth-card__subtitle">안전한 병동 케어 파트너</p>
+      <h1 class="auth-card__title">낙상감지시스템 로그인</h1>
     </div>
 
-    <script>
-      function togglePassword() {
-        const pw = document.getElementById("password");
-        const eye = document.getElementById("toggleEye");
+    {% if signup_success %}
+    <div class="alert alert-success">회원가입이 완료되었습니다. 로그인해 주세요.</div>
+    {% endif %}
+    {% if message %}
+    <div class="alert alert-error">{{ message }}</div>
+    {% endif %}
 
-        if (pw.type === "password") {
-          pw.type = "text";
-          eye.src = "{% static 'images/hide.png' %}";
-        } else {
-          pw.type = "password";
-          eye.src = "{% static 'images/hide.png' %}";
-        }
-      }
+    <form method="POST" action="{% url 'member_login' %}" class="auth-form">
+      {% csrf_token %}
+      <div class="input-field">
+        <label for="member_id">아이디</label>
+        <input
+          type="text"
+          id="member_id"
+          name="member_id"
+          class="input-control"
+          placeholder="ex) wardA101"
+          required
+        />
+      </div>
+      <div class="input-field">
+        <label for="password">비밀번호</label>
+        <div class="input-password">
+          <input
+            type="password"
+            id="password"
+            name="passwd"
+            class="input-control"
+            placeholder="비밀번호"
+            required
+          />
+          <button type="button" id="togglePassword">보기</button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">로그인</button>
+    </form>
 
-      {% if signup_success %}
-      // ✅ 회원가입 완료 팝업 후 로그인 폼 표시
-      Swal.fire({
-        icon: "success",
-        title: "회원가입 완료!",
-        text: "🎉 회원가입이 완료되었습니다. 로그인 해주세요!",
-        confirmButtonText: "확인",
-      }).then(() => {
-        document.getElementById("login-box").style.display = "block";
-        document.querySelector('input[name="member_id"]').focus();
-      });
-      {% else %}
-      // 일반 접근 시 바로 폼 보여주기
-      document.getElementById("login-box").style.display = "block";
-      {% endif %}
-    </script>
-  </body>
-</html>
+    <div class="auth-links">
+      <a href="{% url 'find_id' %}">아이디 찾기</a>
+      <a href="{% url 'find_password' %}">비밀번호 찾기</a>
+      <a href="{% url 'member_reg' %}">회원가입</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  const toggleBtn = document.getElementById("togglePassword");
+  const pwInput = document.getElementById("password");
+
+  toggleBtn.addEventListener("click", () => {
+    const isPassword = pwInput.type === "password";
+    pwInput.type = isPassword ? "text" : "password";
+    toggleBtn.textContent = isPassword ? "숨기기" : "보기";
+  });
+
+  document.getElementById("member_id").focus();
+</script>
+{% endblock %}

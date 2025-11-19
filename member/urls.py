@@ -26,7 +26,9 @@ urlpatterns = [
     # 낙상 기록
     path('fall/add/', views.fall_record_add, name='fall_record_add'),
     path('fall/list/', views.fall_record_list, name='fall_record_list'),
+    path('fall/export/', views.fall_record_export, name='fall_record_export'),
+    path('fall/delete/<int:record_id>/', views.fall_record_delete, name='fall_record_delete'),
     path('fall/alert/list/', views.fall_alert_list, name='fall_alert_list'),  # ✅ 진짜 알림 목록
 
-   
+
 ]

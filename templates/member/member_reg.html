@@ -1,244 +1,130 @@
-{% extends "member/base.html" %} {% load static %}
-<!--prittier-->
-{% block title%}회원가입{%endblock %} {% block content %}
+{% extends "member/base.html" %}
+{% load static %}
+{% block title %}회원가입{% endblock %}
+{% block content %}
 
-<!-- ✅ SweetAlert2 CDN -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<h2 style="text-align: center; margin-bottom: 30px">회원가입</h2>
-
-<form method="POST" style="max-width: 400px; margin: 0 auto">
-  {% csrf_token %}
-
-  <!-- 아이디 -->
-  <div
-    style="
-      display: flex;
-      align-items: center;
-      background: #f2f2f2;
-      border: 1px solid #ccc;
-      margin-bottom: 15px;
-      height: 48px;
-    "
-  >
-    <input
-      type="text"
-      name="member_id"
-      placeholder="아이디"
-      required
-      style="
-        flex: 1;
-        border: none;
-        outline: none;
-        background: transparent;
-        padding: 12px;
-        font-size: 16px;
-      "
-    />
-  </div>
-
-  <!-- 비밀번호 -->
-  <div
-    style="
-      display: flex;
-      align-items: center;
-      background: #f2f2f2;
-      border: 1px solid #ccc;
-      margin-bottom: 15px;
-      height: 48px;
-    "
-  >
-    <input
-      type="password"
-      name="passwd"
-      id="password"
-      placeholder="비밀번호"
-      required
-      style="
-        flex: 1;
-        border: none;
-        outline: none;
-        background: transparent;
-        padding: 12px;
-        font-size: 16px;
-      "
-    />
-    <img
-      src="{% static 'images/hide.png' %}"
-      id="hideIcon"
-      alt="비밀번호 가리기"
-      onclick="togglePassword(true)"
-      style="
-        width: 24px;
-        height: 24px;
-        margin-right: 12px;
-        cursor: pointer;
-        display: inline;
-      "
-    />
-    <img
-      src="{% static 'images/hide.png' %}"
-      id="showIcon"
-      alt="비밀번호 보기"
-      onclick="togglePassword(false)"
-      style="
-        width: 24px;
-        height: 24px;
-        margin-right: 12px;
-        cursor: pointer;
-        display: none;
-      "
-    />
-  </div>
-
-  <!-- 이름 -->
-  <div
-    style="
-      display: flex;
-      align-items: center;
-      background: #f2f2f2;
-      border: 1px solid #ccc;
-      margin-bottom: 15px;
-      height: 48px;
-    "
-  >
-    <input
-      type="text"
-      name="name"
-      placeholder="이름"
-      required
-      style="
-        flex: 1;
-        border: none;
-        outline: none;
-        background: transparent;
-        padding: 12px;
-        font-size: 16px;
-      "
-    />
-  </div>
-
-  <!-- 병동명 -->
-  <div
-    style="
-      display: flex;
-      align-items: center;
-      background: #f2f2f2;
-      border: 1px solid #ccc;
-      margin-bottom: 15px;
-      height: 48px;
-    "
-  >
-    <input
-      type="text"
-      name="ward_name"
-      placeholder="병동명"
-      required
-      style="
-        flex: 1;
-        border: none;
-        outline: none;
-        background: transparent;
-        padding: 12px;
-        font-size: 16px;
-      "
-    />
-  </div>
-
-  <!-- 전화번호 -->
-  <div
-    style="
-      display: flex;
-      align-items: center;
-      background: #f2f2f2;
-      border: 1px solid #ccc;
-      margin-bottom: 15px;
-      height: 48px;
-    "
-  >
-    <input
-      id="phone"
-      type="tel"
-      name="phone"
-      placeholder="전화번호"
-      required
-      style="
-        flex: 1;
-        border: none;
-        outline: none;
-        background: transparent;
-        padding: 12px;
-        font-size: 16px;
-      "
-    />
-  </div>
-
-  <!-- 인증번호 입력 + 버튼 -->
-  <div style="display: flex; gap: 8px; margin-bottom: 20px; height: 48px">
-    <div
-      style="
-        display: flex;
-        align-items: center;
-        background: #f2f2f2;
-        border: 1px solid #ccc;
-        flex: 2;
-      "
-    >
-      <input
-        type="text"
-        name="code"
-        placeholder="인증번호 입력"
-        required
-        style="
-          flex: 1;
-          border: none;
-          outline: none;
-          background: transparent;
-          padding: 12px;
-          font-size: 16px;
-        "
-      />
+<div class="auth-wrapper">
+  <div class="auth-card auth-card--wide">
+    <div>
+      <p class="auth-card__subtitle">안전한 병동 케어 파트너</p>
+      <h1 class="auth-card__title">회원가입</h1>
     </div>
-    <button
-      type="button"
-      onclick="sendVerificationCode()"
-      style="
-        flex: 1;
-        background: #eee;
-        border: 1px solid #ccc;
-        cursor: pointer;
-        font-size: 14px;
-      "
-    >
-      인증번호 받기
-    </button>
+    <p class="text-muted">낙상감지시스템 사용을 위한 병동 계정을 생성합니다.</p>
+
+    {% if message %}
+    <div class="alert alert-error">{{ message }}</div>
+    {% endif %}
+
+    <form method="POST" class="auth-form" id="signup-form">
+      {% csrf_token %}
+      <div class="input-field">
+        <label for="member_id">아이디</label>
+        <input
+          type="text"
+          id="member_id"
+          name="member_id"
+          class="input-control"
+          placeholder="아이디"
+          value="{{ member_id|default_if_none:'' }}"
+          required
+        />
+      </div>
+      <div class="input-field">
+        <label for="password">비밀번호</label>
+        <div class="input-password">
+          <input
+            type="password"
+            id="password"
+            name="passwd"
+            class="input-control"
+            placeholder="비밀번호"
+            required
+          />
+          <button type="button" id="toggleSignupPassword">보기</button>
+        </div>
+      </div>
+      <div class="input-field">
+        <label for="name">이름</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          class="input-control"
+          placeholder="이름"
+          value="{{ name|default_if_none:'' }}"
+          required
+        />
+      </div>
+      <div class="input-field">
+        <label for="ward_name">병동명</label>
+        <input
+          type="text"
+          id="ward_name"
+          name="ward_name"
+          class="input-control"
+          placeholder="병동명"
+          value="{{ ward_name|default_if_none:'' }}"
+          required
+        />
+      </div>
+      <div class="input-field">
+        <label for="phone">전화번호</label>
+        <input
+          type="tel"
+          id="phone"
+          name="phone"
+          class="input-control"
+          placeholder="휴대전화 번호 (- 없이 입력)"
+          value="{{ phone|default_if_none:'' }}"
+          required
+        />
+      </div>
+      <div class="input-field">
+        <label for="code">인증번호</label>
+        <div style="display: flex; gap: 10px">
+          <input
+            type="text"
+            id="code"
+            name="code"
+            class="input-control"
+            placeholder="인증번호 입력"
+            required
+            style="flex: 1"
+          />
+          <button type="button" class="btn btn-outline" id="signup-send-code" style="min-width: 150px">
+            인증번호 받기
+          </button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">가입하기</button>
+    </form>
+
+    <div class="auth-links">
+      <a href="{% url 'member_login' %}">로그인</a>
+      <a href="{% url 'find_id' %}">아이디 찾기</a>
+      <a href="{% url 'find_password' %}">비밀번호 찾기</a>
+    </div>
   </div>
+</div>
 
-  <!-- 가입 버튼 -->
-  <button
-    type="submit"
-    style="
-      width: 100%;
-      padding: 14px;
-      background: black;
-      color: white;
-      font-weight: bold;
-      border: none;
-      border-radius: 6px;
-    "
-  >
-    가입하기
-  </button>
-</form>
-
-{% if message %}
-<p style="color: red; text-align: center; margin-top: 20px">{{ message }}</p>
-{% endif %}
-
-<!-- ✅ 스크립트: 인증번호 요청 + 비밀번호 보기 전환 -->
 <script>
-  function sendVerificationCode() {
-    const phone = document.getElementById("phone").value;
+  const signupForm = document.getElementById("signup-form");
+  const signupPwInput = document.getElementById("password");
+  const signupToggleBtn = document.getElementById("toggleSignupPassword");
+  const signupSendBtn = document.getElementById("signup-send-code");
+
+  const getSignupToken = () => signupForm.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+  signupToggleBtn.addEventListener("click", () => {
+    const isPassword = signupPwInput.type === "password";
+    signupPwInput.type = isPassword ? "text" : "password";
+    signupToggleBtn.textContent = isPassword ? "숨기기" : "보기";
+  });
+
+  signupSendBtn.addEventListener("click", () => {
+    const phone = document.getElementById("phone").value.trim();
     if (!phone) {
       Swal.fire({
         icon: "warning",
@@ -252,12 +138,12 @@
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "X-CSRFToken": "{{ csrf_token }}",
+        "X-CSRFToken": getSignupToken(),
       },
-      body: new URLSearchParams({ phone: phone }),
+      body: new URLSearchParams({ phone }).toString(),
     })
       .then((response) => response.json())
-      .then((data) => {
+      .then(() => {
         Swal.fire({
           icon: "success",
           title: "인증번호 전송 완료",
@@ -265,31 +151,14 @@
           confirmButtonText: "확인",
         });
       })
-      .catch((error) => {
+      .catch(() => {
         Swal.fire({
           icon: "error",
           title: "전송 실패",
           text: "🚫 인증번호 전송에 실패했습니다.",
         });
-        console.error("Error:", error);
       });
-  }
-
-  function togglePassword(show) {
-    const pw = document.getElementById("password");
-    const hideIcon = document.getElementById("hideIcon");
-    const showIcon = document.getElementById("showIcon");
-
-    if (show) {
-      pw.type = "text";
-      hideIcon.style.display = "none";
-      showIcon.style.display = "inline";
-    } else {
-      pw.type = "password";
-      hideIcon.style.display = "inline";
-      showIcon.style.display = "none";
-    }
-  }
+  });
 </script>
 
 {% endblock %}

@@ -1,153 +1,145 @@
 {% extends "member/base.html" %}
-<!-- prettier-ignore-start -->
-{% block title %}아이디 찾기{% endblock %} {% block content %}
+{% block title %}아이디 찾기{% endblock %}
+{% block content %}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<h2 style="text-align: center; font-size: 36px; font-weight: bold">
-  아이디 찾기
-</h2>
-<br />
 
-<div style="max-width: 400px; margin: 0 auto">
-  <form id="find-id-form" method="POST" action="{% url 'verify_id' %}">
-    {% csrf_token %}
-    <input
-      type="text"
-      name="name"
-      placeholder="이름"
-      required
-      style="
-        width: 100%;
-        padding: 12px;
-        margin-bottom: 10px;
-        background: #f1f3f2;
-      "
-    />
-    <input
-      type="text"
-      name="phone"
-      placeholder="전화번호"
-      required
-      style="
-        width: 100%;
-        padding: 12px;
-        margin-bottom: 10px;
-        background: #f1f3f2;
-      "
-    />
-
-    <!-- 인증번호 입력 & 버튼 -->
-    <div style="display: flex; gap: 10px; margin-bottom: 10px">
-      <input
-        type="text"
-        id="code"
-        name="code"
-        placeholder="인증번호 입력"
-        style="flex: 2; padding: 12px; background: #f1f3f2"
-      />
-      <button type="button" id="send-code-btn" style="flex: 1; padding: 12px">
-        인증번호 받기
-      </button>
+<div class="auth-wrapper">
+  <div class="auth-card auth-card--wide">
+    <div>
+      <p class="auth-card__subtitle">안전한 병동 케어 파트너</p>
+      <h1 class="auth-card__title">아이디 찾기</h1>
     </div>
+    <p class="text-muted">가입 시 사용한 정보로 본인 인증 후 아이디를 확인하세요.</p>
 
-    <div id="error" style="color: red; font-size: 14px"></div>
-    <div
-      id="result"
-      style="margin-top: 20px; font-weight: bold; text-align: center"
-    ></div>
+    <div id="error" class="alert alert-error" style="display: none"></div>
+    <div id="result" class="alert alert-success" style="display: none"></div>
 
-    <button
-      type="submit"
-      style="
-        width: 100%;
-        padding: 14px;
-        background: black;
-        color: white;
-        font-size: 16px;
-        border: none;
-        margin-top: 15px;
-      "
-    >
-      아이디 찾기
-    </button>
-  </form>
+    <form id="find-id-form" method="POST" action="{% url 'verify_id' %}" class="auth-form">
+      {% csrf_token %}
+      <div class="input-field">
+        <label for="name">이름</label>
+        <input type="text" id="name" name="name" class="input-control" placeholder="이름" required />
+      </div>
+      <div class="input-field">
+        <label for="phone">전화번호</label>
+        <input
+          type="text"
+          id="phone"
+          name="phone"
+          class="input-control"
+          placeholder="휴대전화 번호 (- 없이 입력)"
+          required
+        />
+      </div>
+      <div class="input-field">
+        <label for="code">인증번호</label>
+        <div style="display: flex; gap: 10px">
+          <input
+            type="text"
+            id="code"
+            name="code"
+            class="input-control"
+            placeholder="인증번호 입력"
+            required
+            style="flex: 1"
+          />
+          <button type="button" id="send-code-btn" class="btn btn-outline" style="min-width: 150px">
+            인증번호 받기
+          </button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">아이디 찾기</button>
+    </form>
+
+    <div class="auth-links">
+      <a href="{% url 'member_login' %}">로그인</a>
+      <a href="{% url 'find_password' %}">비밀번호 찾기</a>
+      <a href="{% url 'member_reg' %}">회원가입</a>
+    </div>
+  </div>
 </div>
 
 <script>
-  document
-    .getElementById("send-code-btn")
-    .addEventListener("click", function () {
-      const phone = document.querySelector('input[name="phone"]').value;
-      if (!phone) {
-        Swal.fire({ icon: "warning", text: "전화번호를 입력해주세요." });
-        return;
-      }
+  const form = document.getElementById("find-id-form");
+  const sendBtn = document.getElementById("send-code-btn");
+  const errorBox = document.getElementById("error");
+  const resultBox = document.getElementById("result");
 
-      fetch("{% url 'send_verification_code' %}", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-CSRFToken": "{{ csrf_token }}",
-        },
-        body: "phone=" + encodeURIComponent(phone),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          Swal.fire({
-            icon: "success",
-            title: "인증번호 전송 완료",
-            text: "📩 인증번호가 전송되었습니다!",
-            confirmButtonText: "확인",
-          });
-        })
-        .catch((err) => {
-          Swal.fire({
-            icon: "error",
-            title: "전송 실패",
-            text: "🚫 인증번호 전송에 실패했습니다.",
-          });
+  const showMessage = (el, text) => {
+    if (!text) {
+      el.style.display = "none";
+      el.textContent = "";
+      return;
+    }
+    el.textContent = text;
+    el.style.display = "block";
+  };
+
+  const getCsrfToken = () => form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+  sendBtn.addEventListener("click", function () {
+    const phone = document.getElementById("phone").value.trim();
+    if (!phone) {
+      Swal.fire({ icon: "warning", text: "전화번호를 입력해주세요." });
+      return;
+    }
+
+    fetch("{% url 'send_verification_code' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken": getCsrfToken(),
+      },
+      body: "phone=" + encodeURIComponent(phone),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        Swal.fire({
+          icon: "success",
+          title: "인증번호 전송 완료",
+          text: "📩 인증번호가 전송되었습니다!",
+          confirmButtonText: "확인",
         });
-    });
-
-  document
-    .getElementById("find-id-form")
-    .addEventListener("submit", function (e) {
-      e.preventDefault();
-
-      const form = e.target;
-      const name = form.name.value;
-      const phone = form.phone.value;
-      const code = form.code.value;
-
-      fetch("{% url 'verify_id' %}", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-CSRFToken": "{{ csrf_token }}",
-        },
-        body:
-          "name=" +
-          encodeURIComponent(name) +
-          "&phone=" +
-          encodeURIComponent(phone) +
-          "&code=" +
-          encodeURIComponent(code),
       })
-        .then((res) => {
-          if (!res.ok) throw res;
-          return res.json();
-        })
-        .then((data) => {
-          document.getElementById("error").textContent = "";
-          document.getElementById(
-            "result"
-          ).textContent = `고객님의 아이디는 ${data.member_id} 입니다.`;
-        })
-        .catch(async (err) => {
-          const errData = await err.json();
-          document.getElementById("error").textContent =
-            "❌ " + (errData.status || "오류가 발생했습니다.");
-          document.getElementById("result").textContent = "";
+      .catch(() => {
+        Swal.fire({
+          icon: "error",
+          title: "전송 실패",
+          text: "🚫 인증번호 전송에 실패했습니다.",
         });
-    });
+      });
+  });
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const name = form.name.value.trim();
+    const phone = form.phone.value.trim();
+    const code = form.code.value.trim();
+
+    const params = new URLSearchParams({ name, phone, code });
+
+    fetch("{% url 'verify_id' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken": getCsrfToken(),
+      },
+      body: params.toString(),
+    })
+      .then((res) => {
+        if (!res.ok) throw res;
+        return res.json();
+      })
+      .then((data) => {
+        showMessage(errorBox, "");
+        showMessage(resultBox, `고객님의 아이디는 ${data.member_id} 입니다.`);
+      })
+      .catch(async (err) => {
+        const errData = await err.json();
+        showMessage(errorBox, "❌ " + (errData.status || "오류가 발생했습니다."));
+        showMessage(resultBox, "");
+      });
+  });
 </script>
 {% endblock %}

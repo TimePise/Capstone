@@ -1,92 +1,60 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <title>{% block title %}낙상감지시스템{% endblock %}</title>
-    <style>
-      body {
-        margin: 0;
-        font-family: "Noto Sans KR", sans-serif;
-        background-color: #ffffff;
-      }
-
-      header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px 40px;
-        border-bottom: 1px solid #f0f0f0;
-      }
-
-      .nav-left a {
-        font-size: 1.2rem;
-        font-weight: bold;
-        text-decoration: none;
-        color: #000;
-        position: relative;
-        display: inline-block;
-        padding: 5px 10px;
-        transition: color 0.3s ease;
-      }
-
-      .nav-right {
-        display: flex;
-        gap: 30px;
-      }
-
-      .nav-right a {
-        text-decoration: none;
-        color: #000;
-        font-size: 0.95rem;
-        position: relative;
-        padding: 5px 10px;
-        transition: color 0.3s ease;
-      }
-
-      /* 🔽 공통 hover 효과 */
-      .nav-left a::before,
-      .nav-right a::before {
-        content: "";
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        height: 0%;
-        background-color: black;
-        z-index: -1;
-        transition: height 0.3s ease;
-      }
-
-      .nav-left a:hover::before,
-      .nav-right a:hover::before {
-        height: 100%;
-      }
-
-      .nav-left a:hover,
-      .nav-right a:hover {
-        color: white;
-      }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{% static 'css/app.css' %}" />
+    {% block extra_head %}{% endblock %}
   </head>
   <body>
-    <!-- ✅ 상단 GNB -->
+    {% with request.path as current_path %}
     <header>
       <div class="nav-left">
-        <a href="{% url 'member_index' %}">Home</a>
+        <a href="{% url 'member_index' %}">낙상감지시스템</a>
       </div>
       <div class="nav-right">
-        <a href="{% url 'mypage' %}">마이페이지</a>
-        <a href="{% url 'fall_record_list' %}">이력조회</a>
-        <a href="{% url 'fall_alert_list' %}">알림확인</a>
-        <a href="{% url 'fall_prevention' %}">감지화면</a>
+        <a
+          href="{% url 'mypage' %}"
+          class="{% if '/member/mypage' in current_path %}active{% endif %}"
+          >마이페이지</a
+        >
+        <a
+          href="{% url 'fall_record_list' %}"
+          class="{% if '/member/fall/' in current_path and '/alert/' not in current_path %}active{% endif %}"
+          >이력조회</a
+        >
+        <a
+          href="{% url 'fall_alert_list' %}"
+          class="{% if '/member/fall/alert' in current_path %}active{% endif %}"
+          >알림확인</a
+        >
+        <a
+          href="{% url 'fall_prevention' %}"
+          class="{% if '/member/fall_prevention' in current_path %}active{% endif %}"
+          >감지화면</a
+        >
         {% if request.session.m_id %}
         <a href="{% url 'member_logout' %}">로그아웃</a>
         {% else %}
-        <a href="{% url 'member_login' %}">로그인</a>
+        <a
+          href="{% url 'member_login' %}"
+          class="{% if '/member/login' in current_path %}active{% endif %}"
+          >로그인</a
+        >
         {% endif %}
       </div>
     </header>
+    {% endwith %}
 
-    {% block content %}{% endblock %}
+    <main class="layout">
+      {% block content %}{% endblock %}
+    </main>
   </body>
 </html>

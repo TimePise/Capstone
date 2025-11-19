@@ -1,53 +1,262 @@
-{% extends "member/base.html" %} {% block title %}낙상 알림 목록{% endblock %}
+{% extends "member/base.html" %}
+{% block title %}낙상 알림 목록{% endblock %}
 {% block content %}
-<div style="max-width: 800px; margin: 60px auto; padding: 0 20px">
-  <h2
-    style="
-      text-align: center;
-      font-size: 28px;
-      font-weight: bold;
-      margin-bottom: 40px;
-    "
-  >
-    낙상 알림 목록
-  </h2>
+<style>
+  .alert-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
 
-  <div id="alert-container">
-    {% for alert in alerts %}
-    <div
-      style="
-        background-color: {% if alert.fall_level == '고위험' %}#e74c3c
-                          {% elif alert.fall_level == '중위험' %}#3498db
-                          {% else %}#f1c40f{% endif %};
-        color: {% if alert.fall_level == '저위험' %}#333{% else %}white{% endif %};
-        padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 30px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      "
-    >
-      <p><strong>환자명:</strong> {{ alert.name }}</p>
-      <p><strong>병동/호실:</strong> {{ alert.room_number }}</p>
-      <p><strong>낙상 단계:</strong> {{ alert.fall_level }}</p>
-      <p><strong>낙상 부위:</strong> {{ alert.part }}</p>
-      <p><strong>시간:</strong> {{ alert.timestamp|date:"Y-m-d H:i:s" }}</p>
+  .alert-headline h2 {
+    margin: 0;
+    font-size: 1.8rem;
+    letter-spacing: -0.02em;
+  }
+
+  .stat-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+  }
+
+  .chip-card {
+    border-radius: 20px;
+    border: 1px solid var(--border-light);
+    background: #f7f9ff;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .chip-card span {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .chip-card strong {
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+
+  .filter-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-radius: 24px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-light);
+    padding: 16px 20px;
+    align-items: center;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 12px 24px rgba(90, 110, 220, 0.3);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-light);
+  }
+
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .filter-toolbar label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+  }
+
+  .filter-toolbar select {
+    border: 1px solid var(--border-light);
+    border-radius: 14px;
+    padding: 10px 12px;
+    background: #f7f8fc;
+    font-family: inherit;
+    font-size: 0.95rem;
+  }
+
+  .alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .alert-card {
+    border-radius: 24px;
+    padding: 20px 24px;
+    color: #fff;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .alert-card::after {
+    content: "";
+    position: absolute;
+    right: -60px;
+    top: -60px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .alert-card__label {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.9;
+  }
+
+  .alert-card__value {
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+
+  .alert-card.safe {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #654321;
+  }
+
+  .alert-card.warning {
+    background: linear-gradient(135deg, #91c9ff, #5ba4f7);
+  }
+
+  .alert-card.critical {
+    background: linear-gradient(135deg, #ff6b6b, #c81d77);
+  }
+
+  .empty-alert {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 60px 0;
+  }
+</style>
+
+<section class="page-card alert-dashboard">
+  <div class="alert-headline">
+    <h2>실시간 낙상 알림</h2>
+    <p style="color: var(--text-muted); margin: 6px 0 0">
+      최근 50건의 알림을 보여주며, 실시간 스트림으로 새 알림이 자동 추가됩니다.
+    </p>
+  </div>
+
+  <div class="stat-chips">
+    <div class="chip-card">
+      <span>전체 알림</span>
+      <strong>{{ summary.total }}</strong>
+      <small style="color: var(--text-muted)">누적 발생</small>
     </div>
+    <div class="chip-card">
+      <span>읽지 않은 알림</span>
+      <strong>{{ summary.unread }}</strong>
+      <small style="color: var(--text-muted)">확인 필요</small>
+    </div>
+    <div class="chip-card">
+      <span>고위험</span>
+      <strong>{{ summary.levels.고위험|default:0 }}</strong>
+      <small style="color: #b91c1c">즉시 대응</small>
+    </div>
+    <div class="chip-card">
+      <span>최근 발생</span>
+      <strong>
+        {% if summary.latest %}
+          {{ summary.latest.timestamp|date:"m.d H:i" }}
+        {% else %}
+          -
+        {% endif %}
+      </strong>
+      <small style="color: var(--text-muted)">마지막 알림 시각</small>
+    </div>
+  </div>
+
+  <form method="GET" class="filter-toolbar">
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <label for="level">위험 단계</label>
+      <select name="level" id="level">
+        <option value="">전체</option>
+        <option value="고위험" {% if filters.level == "고위험" %}selected{% endif %}>고위험</option>
+        <option value="중위험" {% if filters.level == "중위험" %}selected{% endif %}>중위험</option>
+        <option value="저위험" {% if filters.level == "저위험" %}selected{% endif %}>저위험</option>
+      </select>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <label for="status">확인 여부</label>
+      <select name="status" id="status">
+        <option value="">전체</option>
+        <option value="unread" {% if filters.status == "unread" %}selected{% endif %}>미확인</option>
+        <option value="read" {% if filters.status == "read" %}selected{% endif %}>확인완료</option>
+      </select>
+    </div>
+    <div style="margin-left: auto; display: flex; gap: 10px">
+      <button type="submit" class="btn btn-primary">필터 적용</button>
+      <a href="{% url 'fall_alert_list' %}" class="btn btn-outline">초기화</a>
+    </div>
+  </form>
+
+  <div class="alert-list" id="alert-container">
+    {% for alert in alerts %}
+    <article
+      class="alert-card {% if alert.fall_level == '고위험' %}critical{% elif alert.fall_level == '중위험' %}warning{% else %}safe{% endif %}"
+    >
+      <div>
+        <p class="alert-card__label">환자명</p>
+        <p class="alert-card__value">{{ alert.name }}</p>
+      </div>
+      <div>
+        <p class="alert-card__label">병동/호실</p>
+        <p class="alert-card__value">{{ alert.room_number }}</p>
+      </div>
+      <div>
+        <p class="alert-card__label">위험 단계</p>
+        <p class="alert-card__value">{{ alert.fall_level }}</p>
+      </div>
+      <div>
+        <p class="alert-card__label">낙상 부위</p>
+        <p class="alert-card__value">{{ alert.part }}</p>
+      </div>
+      <div>
+        <p class="alert-card__label">시간</p>
+        <p class="alert-card__value">{{ alert.timestamp|date:"Y-m-d H:i:s" }}</p>
+      </div>
+    </article>
     {% empty %}
-    <p style="text-align: center; color: #666">알림이 없습니다.</p>
+    <p class="empty-alert">조건에 맞는 알림이 없습니다.</p>
     {% endfor %}
   </div>
-</div>
+</section>
 
 <script>
   const alertContainer = document.getElementById("alert-container");
-
-  // ✅ SSE 연결
   const sse = new EventSource("{% url 'fall_alert_stream' %}");
 
   sse.onmessage = function (event) {
     const data = JSON.parse(event.data);
+    const card = document.createElement("article");
+    const levelClass =
+      data.fall_level === "고위험"
+        ? "critical"
+        : data.fall_level === "중위험"
+        ? "warning"
+        : "safe";
 
-    // ✅ 날짜 포맷 변환
     const timeText = new Date(data.timestamp).toLocaleString("ko-KR", {
       year: "numeric",
       month: "2-digit",
@@ -57,37 +266,31 @@
       second: "2-digit",
     });
 
-    // ✅ 색상 설정
-    let bgColor = "#bdc3c7";
-    let textColor = "white";
-    if (data.fall_level === "고위험") bgColor = "#e74c3c";
-    else if (data.fall_level === "중위험") bgColor = "#3498db";
-    else {
-      bgColor = "#f1c40f";
-      textColor = "#333";
-    }
-
-    // ✅ 카드 생성
-    const newAlert = document.createElement("div");
-    newAlert.style = `
-      background-color: ${bgColor};
-      color: ${textColor};
-      padding: 20px;
-      border-radius: 12px;
-      margin-bottom: 30px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    card.className = `alert-card ${levelClass}`;
+    card.innerHTML = `
+      <div>
+        <p class="alert-card__label">환자명</p>
+        <p class="alert-card__value">${data.name}</p>
+      </div>
+      <div>
+        <p class="alert-card__label">병동/호실</p>
+        <p class="alert-card__value">${data.room_number}</p>
+      </div>
+      <div>
+        <p class="alert-card__label">위험 단계</p>
+        <p class="alert-card__value">${data.fall_level}</p>
+      </div>
+      <div>
+        <p class="alert-card__label">낙상 부위</p>
+        <p class="alert-card__value">${data.part}</p>
+      </div>
+      <div>
+        <p class="alert-card__label">시간</p>
+        <p class="alert-card__value">${timeText}</p>
+      </div>
     `;
 
-    newAlert.innerHTML = `
-      <p style="margin-bottom: 10px;"><strong style="color: #00bfff;">🆕 실시간 알림</strong></p>
-      <p><strong>환자명:</strong> ${data.name}</p>
-      <p><strong>병동/호실:</strong> ${data.room_number}</p>
-      <p><strong>낙상 단계:</strong> ${data.fall_level}</p>
-      <p><strong>낙상 부위:</strong> ${data.part}</p>
-      <p><strong>시간:</strong> ${timeText}</p>
-    `;
-
-    alertContainer.prepend(newAlert);
+    alertContainer.prepend(card);
   };
 
   sse.onerror = function (err) {

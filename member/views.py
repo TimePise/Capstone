@@ -1,24 +1,17 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse, StreamingHttpResponse
+from django.views.decorators.http import require_POST, require_GET
+from django.http import JsonResponse, HttpResponse
+from django.db.models import Count
+from django.utils import timezone
 from member.models import Member, UserLog, FallRecord
 from fall.models import FallAlert
-import cv2
-import mediapipe as mp
+from fall.views import get_privacy_mode_state
+import csv
 import random
-import numpy as np
-from PIL import ImageFont, ImageDraw, Image
-from datetime import datetime
+from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-
-# MediaPipe 초기화
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose()
-mp_drawing = mp.solutions.drawing_utils
-
-# 프라이버시 모드 상태
-privacy_mode = False
 
 # 인증번호 저장소
 verification_store = {}
@@ -80,7 +73,8 @@ def member_reg(request):
 @csrf_exempt
 def member_login(request):
     if request.method == "GET":
-        return render(request, "member/login.html")
+        signup_success = request.session.pop("signup_success", False)
+        return render(request, "member/login.html", {"signup_success": signup_success})
     elif request.method == "POST":
         member_id = request.POST.get("member_id")
         passwd = request.POST.get("passwd")
@@ -91,7 +85,8 @@ def member_login(request):
             UserLog.objects.create(member=member, action="login")
             return redirect("fall_prevention")
         return render(request, "member/login.html", {
-            "message": "아이디 또는 비밀번호가 일치하지 않습니다."
+            "message": "아이디 또는 비밀번호가 일치하지 않습니다.",
+            "signup_success": False,
         })
 
 # ✅ 로그아웃
@@ -205,48 +200,9 @@ def fall_prevention(request):
     return render(request, "member/fall_prevention.html", {
         "m_id": request.session.get("m_id", ""),
         "m_name": request.session.get("m_name", ""),
-        "privacy_mode": privacy_mode,
+        "privacy_mode": get_privacy_mode_state(),
     })
 
-# ✅ 실시간 영상 스트리밍
-def generate_frames():
-    global privacy_mode
-    cap = cv2.VideoCapture(0)
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        frame = cv2.flip(frame, 1)
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = pose.process(rgb)
-
-        if privacy_mode:
-            frame[:] = (0, 0, 0)
-
-        if result.pose_landmarks:
-            mp_drawing.draw_landmarks(
-                frame, result.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                landmark_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2),
-                connection_drawing_spec=mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
-            )
-
-        _, buffer = cv2.imencode('.jpg', frame)
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-    cap.release()
-
-def pose_estimation_feed(request):
-    return StreamingHttpResponse(generate_frames(), content_type='multipart/x-mixed-replace; boundary=frame')
-
-# ✅ 보호모드 전환
-def toggle_privacy_mode(request):
-    global privacy_mode
-    privacy_mode = not privacy_mode
-    return JsonResponse({'privacy_mode': privacy_mode})
-
-# ✅ 낙상 기록 등록
 @csrf_exempt
 def fall_record_add(request):
     member_id = request.session.get("m_id")
@@ -269,14 +225,124 @@ def fall_record_add(request):
         )
         return redirect("fall_record_list")
 
-# ✅ 낙상 기록 리스트
+
+def _filtered_records(request, member):
+    records = FallRecord.objects.filter(member=member).order_by("-fall_date")
+    filters = {
+        "name": request.GET.get("name", "").strip(),
+        "level": request.GET.get("level", "").strip(),
+        "start_date": request.GET.get("start_date", "").strip(),
+        "end_date": request.GET.get("end_date", "").strip(),
+    }
+
+    if filters["name"]:
+        records = records.filter(name__icontains=filters["name"])
+    if filters["level"]:
+        records = records.filter(fall_level=filters["level"])
+    if filters["start_date"]:
+        records = records.filter(fall_date__date__gte=filters["start_date"])
+    if filters["end_date"]:
+        records = records.filter(fall_date__date__lte=filters["end_date"])
+
+    return records, filters
+
+
+def _build_record_summary(records):
+    level_order = ["심각", "중간", "경미"]
+    level_counts = {level: 0 for level in level_order}
+    for row in records.values("fall_level").annotate(count=Count("record_id")):
+        if row["fall_level"] in level_counts:
+            level_counts[row["fall_level"]] = row["count"]
+
+    today = timezone.localdate()
+    start_day = today - timedelta(days=6)
+    daily_template = {start_day + timedelta(days=i): 0 for i in range(7)}
+    trend_rows = (
+        records.filter(fall_date__date__gte=start_day)
+        .values("fall_date__date")
+        .annotate(count=Count("record_id"))
+    )
+    for row in trend_rows:
+        day = row["fall_date__date"]
+        if day in daily_template:
+            daily_template[day] = row["count"]
+
+    weekly_trend = [
+        {"date": day.strftime("%m.%d"), "count": daily_template[day]}
+        for day in sorted(daily_template.keys())
+    ]
+
+    return {
+        "total": records.count(),
+        "latest": records.first(),
+        "levels": {
+            "critical": level_counts.get("심각", 0),
+            "warning": level_counts.get("중간", 0),
+            "safe": level_counts.get("경미", 0),
+        },
+        "weekly_trend": weekly_trend,
+    }
+
+
 def fall_record_list(request):
     member_id = request.session.get("m_id")
     if not member_id:
         return redirect("member_login")
     member = get_object_or_404(Member, member_id=member_id)
-    records = FallRecord.objects.filter(member=member).order_by("-fall_date")
-    return render(request, "member/fall_record_list.html", {"records": records,"m_id": member.member_id})
+
+    records, filters = _filtered_records(request, member)
+    summary = _build_record_summary(records)
+    recent_alerts = FallAlert.objects.order_by("-timestamp")[:3]
+
+    context = {
+        "records": records,
+        "m_id": member.member_id,
+        "filters": filters,
+        "summary": summary,
+        "recent_alerts": recent_alerts,
+        "export_query": request.GET.urlencode(),
+    }
+    return render(request, "member/fall_record_list.html", context)
+
+@require_POST
+def fall_record_delete(request, record_id):
+    member_id = request.session.get("m_id")
+    if not member_id:
+        return redirect("member_login")
+    member = get_object_or_404(Member, member_id=member_id)
+    record = get_object_or_404(FallRecord, pk=record_id, member=member)
+    record.delete()
+    return redirect("fall_record_list")
+
+
+@require_GET
+def fall_record_export(request):
+    member_id = request.session.get("m_id")
+    if not member_id:
+        return redirect("member_login")
+    member = get_object_or_404(Member, member_id=member_id)
+
+    records, _ = _filtered_records(request, member)
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M")
+    filename = f"fall_records_{timestamp}.csv"
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(["이름", "나이", "병동/호실", "발생일시", "낙상단계", "부위", "특이사항"])
+    for record in records:
+        writer.writerow([
+            record.name,
+            record.age,
+            record.room_number,
+            record.fall_date.strftime("%Y-%m-%d %H:%M"),
+            record.fall_level,
+            record.fall_area,
+            record.note or "",
+        ])
+    return response
+
 
 # ✅ 낙상 알림 리스트 
 def fall_alert_list(request):
@@ -285,6 +351,40 @@ def fall_alert_list(request):
         return redirect("member_login")
 
     member = get_object_or_404(Member, member_id=member_id)
-    alerts = FallAlert.objects.filter().order_by("-timestamp")[:50]  # 최근 알림 50개
-    return render(request, "member/fall_alert_list.html", {"alerts": alerts,"m_id": member.member_id})
+
+    filters = {
+        "level": request.GET.get("level", "").strip(),
+        "status": request.GET.get("status", "").strip(),
+    }
+
+    queryset = FallAlert.objects.all().order_by("-timestamp")
+    if filters["level"]:
+        queryset = queryset.filter(fall_level=filters["level"])
+    if filters["status"] == "unread":
+        queryset = queryset.filter(is_read=False)
+    elif filters["status"] == "read":
+        queryset = queryset.filter(is_read=True)
+
+    alerts = list(queryset[:50])
+
+    level_labels = ["고위험", "중위험", "저위험"]
+    level_stats = {label: 0 for label in level_labels}
+    for row in FallAlert.objects.values("fall_level").annotate(count=Count("id")):
+        if row["fall_level"] in level_stats:
+            level_stats[row["fall_level"]] = row["count"]
+
+    summary = {
+        "total": FallAlert.objects.count(),
+        "unread": FallAlert.objects.filter(is_read=False).count(),
+        "latest": FallAlert.objects.order_by("-timestamp").first(),
+        "levels": level_stats,
+    }
+
+    context = {
+        "alerts": alerts,
+        "m_id": member.member_id,
+        "filters": filters,
+        "summary": summary,
+    }
+    return render(request, "member/fall_alert_list.html", context)
 
