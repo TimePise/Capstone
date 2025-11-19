@@ -1,99 +1,46 @@
-{% extends "member/base.html" %} {% block title %}마이페이지{% endblock %}
-{%block content %}
+{% extends "member/base.html" %}
+{% block title %}마이페이지{% endblock %}
+{% block content %}
 
-<style>
-  /* 🔁 배경 애니메이션 색상 */
-  body {
-    animation: bgCycle 20s infinite;
-    background-size: cover;
-    transition: background-color 2s ease;
-  }
+<div class="auth-wrapper">
+  <div class="auth-card auth-card--wide">
+    <div>
+      <p class="auth-card__subtitle">계정 정보</p>
+      <h1 class="auth-card__title">{{ member.name }} 님</h1>
+      <p class="text-muted" style="margin-top: 4px">
+        낙상감지시스템에 등록된 병동 계정 정보를 확인하고 관리할 수 있습니다.
+      </p>
+    </div>
 
-  @keyframes bgCycle {
-    0% {
-      background-color: #f0f8ff;
-    } /* AliceBlue */
-    25% {
-      background-color: #e6f7ff;
-    } /* LightSkyBlue */
-    50% {
-      background-color: #fffaf0;
-    } /* FloralWhite */
-    75% {
-      background-color: #fef6ff;
-    } /* LavenderBlush */
-    100% {
-      background-color: #f0f8ff;
-    }
-  }
+    <div class="page-card" style="padding: 24px; border-radius: 20px">
+      <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+        <div class="input-field">
+          <label>아이디</label>
+          <div class="input-control" style="background: #fff">{{ member.member_id }}</div>
+        </div>
+        <div class="input-field">
+          <label>전화번호</label>
+          <div class="input-control" style="background: #fff">{{ formatted_phone }}</div>
+        </div>
+        <div class="input-field">
+          <label>병동명</label>
+          <div class="input-control" style="background: #fff">{{ formatted_ward }}</div>
+        </div>
+        <div class="input-field">
+          <label>담당자 이름</label>
+          <div class="input-control" style="background: #fff">{{ member.name }}</div>
+        </div>
+      </div>
+    </div>
 
-  .mypage-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 60px 20px;
-  }
-
-  .info-box {
-    background-color: rgba(255, 255, 255, 0.85);
-    padding: 30px;
-    max-width: 500px;
-    width: 100%;
-    border-radius: 10px;
-    font-size: 1.1rem;
-    text-align: left;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  }
-
-  .button-group {
-    display: flex;
-    gap: 10px;
-    max-width: 500px;
-    width: 100%;
-    margin-top: 30px;
-  }
-
-  .button-group form {
-    flex: 1;
-  }
-
-  .button-group button {
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: 6px;
-    font-size: 1rem;
-    color: white;
-    cursor: pointer;
-  }
-
-  .logout-btn {
-    background-color: #333;
-  }
-
-  .delete-btn {
-    background-color: #c0392b;
-  }
-</style>
-
-<div class="mypage-container">
-  <h2 style="margin-bottom: 20px">마이페이지</h2>
-
-  <div class="info-box">
-    <p><strong>이름 :</strong> {{ member.name }}</p>
-    <p><strong>아이디 :</strong> {{ member.member_id }}</p>
-    <p><strong>전화번호 :</strong> {{ formatted_phone }}</p>
-    <p><strong>병동명 :</strong> {{ formatted_ward }}</p>
-  </div>
-
-  <div class="button-group">
-    <form action="{% url 'member_logout' %}" method="get">
-      <button type="submit" class="logout-btn">로그아웃</button>
-    </form>
-
-    <form action="{% url 'member_delete' %}" method="get">
-      <button type="submit" class="delete-btn">계정 탈퇴</button>
-    </form>
+    <div class="form-actions" style="justify-content: flex-end">
+      <form action="{% url 'member_logout' %}" method="get">
+        <button type="submit" class="btn btn-outline">로그아웃</button>
+      </form>
+      <form action="{% url 'member_delete' %}" method="get">
+        <button type="submit" class="btn btn-primary" style="background: #c0392b">계정 탈퇴</button>
+      </form>
+    </div>
   </div>
 </div>
 

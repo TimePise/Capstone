@@ -388,3 +388,14 @@ def fall_alert_list(request):
     }
     return render(request, "member/fall_alert_list.html", context)
 
+@require_POST
+def fall_alert_mark(request, alert_id):
+    if not request.session.get("m_id"):
+        return JsonResponse({"error": "로그인이 필요합니다."}, status=403)
+
+    alert = get_object_or_404(FallAlert, id=alert_id)
+    if not alert.is_read:
+        alert.is_read = True
+        alert.save(update_fields=["is_read"])
+    return JsonResponse({"status": "ok"})
+

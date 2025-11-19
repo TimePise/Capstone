@@ -29,6 +29,7 @@ urlpatterns = [
     path('fall/export/', views.fall_record_export, name='fall_record_export'),
     path('fall/delete/<int:record_id>/', views.fall_record_delete, name='fall_record_delete'),
     path('fall/alert/list/', views.fall_alert_list, name='fall_alert_list'),  # ✅ 진짜 알림 목록
+    path('fall/alert/mark/<int:alert_id>/', views.fall_alert_mark, name='fall_alert_mark'),
 
 
 ]

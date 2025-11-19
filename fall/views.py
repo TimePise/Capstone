@@ -230,7 +230,7 @@ def generate_pose_estimation():
 
                                     threading.Thread(target=play_alarm, daemon=True).start()
 
-                                    FallAlert.objects.create(
+                                    alert = FallAlert.objects.create(
                                         message=label,
                                         part=part,
                                         fall_level=fall_level,
@@ -244,6 +244,7 @@ def generate_pose_estimation():
                                         "fall_alert_group",
                                         {
                                             "type": "send_alert",
+                                            "id": alert.id,
                                             "message": label,
                                             "name": "환자A",
                                             "room_number": "101호",
@@ -260,9 +261,13 @@ def generate_pose_estimation():
             last_fall_label = label
             last_fall_pred = fall_pred
 
-            if result.pose_landmarks:
+            privacy_active = get_privacy_mode_state()
+
+            if result.pose_landmarks and not privacy_active:
                 mp_drawing.draw_landmarks(
-                    frame, result.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                    frame,
+                    result.pose_landmarks,
+                    mp_pose.POSE_CONNECTIONS,
                     landmark_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2),
                     connection_drawing_spec=mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
                 )
@@ -270,20 +275,15 @@ def generate_pose_estimation():
             with frame_lock:
                 last_visible_frame = frame.copy()
 
-            privacy_active = get_privacy_mode_state()
             if privacy_active:
                 frame[:] = (0, 0, 0)
-                for i, line in enumerate(_get_landmark_text()):
-                    y = 30 + (i * 22)
-                    cv2.putText(
+                if result.pose_landmarks:
+                    mp_drawing.draw_landmarks(
                         frame,
-                        line,
-                        (20, y),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.55,
-                        (0, 255, 200),
-                        1,
-                        cv2.LINE_AA,
+                        result.pose_landmarks,
+                        mp_pose.POSE_CONNECTIONS,
+                        landmark_drawing_spec=mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2),
+                        connection_drawing_spec=mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2)
                     )
 
             shared_frame = frame.copy()  # ✅ 최신 프레임 저장
@@ -300,30 +300,39 @@ def generate_pose_estimation():
 # ✅ 프레임만 보여주는 스트리밍 함수
 def pose_estimation_feed(request):
     def stream_shared_frame():
-        while True:
-            if shared_frame is not None:
-                _, buffer = cv2.imencode('.jpg', shared_frame)
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-            time.sleep(0.05)
+        try:
+            while True:
+                if shared_frame is not None:
+                    _, buffer = cv2.imencode('.jpg', shared_frame)
+                    yield (
+                        b'--frame\r\n'
+                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n'
+                    )
+                time.sleep(0.05)
+        except (GeneratorExit, ConnectionAbortedError, BrokenPipeError):
+            return
     return StreamingHttpResponse(stream_shared_frame(), content_type='multipart/x-mixed-replace; boundary=frame')
 
 # ✅ SSE 스트리밍 알림
 def fall_alert_stream(request):
     def event_stream():
         last_sent = None
-        while True:
-            alert = FallAlert.objects.filter(is_read=False).order_by('-timestamp').first()
-            if alert and alert.timestamp != last_sent:
-                last_sent = alert.timestamp
-                payload = {
-                    "message": alert.message,
-                    "name": alert.name,
-                    "room_number": alert.room_number,
-                    "fall_level": alert.fall_level,
-                    "part": alert.part,
-                    "timestamp": alert.timestamp.isoformat()
-                }
-                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-            time.sleep(1)
+        try:
+            while True:
+                alert = FallAlert.objects.filter(is_read=False).order_by('-timestamp').first()
+                if alert and alert.timestamp != last_sent:
+                    last_sent = alert.timestamp
+                    payload = {
+                        "id": alert.id,
+                        "message": alert.message,
+                        "name": alert.name,
+                        "room_number": alert.room_number,
+                        "fall_level": alert.fall_level,
+                        "part": alert.part,
+                        "timestamp": alert.timestamp.isoformat()
+                    }
+                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                time.sleep(1)
+        except (GeneratorExit, ConnectionAbortedError, BrokenPipeError):
+            return
     return StreamingHttpResponse(event_stream(), content_type='text/event-stream')
