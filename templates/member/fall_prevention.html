@@ -1,110 +1,357 @@
 {% extends "member/base.html" %} {% block title %}낙상감지시스템{% endblock %}
 {% block content %}
 <style>
-  .container {
-    padding: 40px;
-    max-width: 1200px;
+  :root {
+    color-scheme: light;
+  }
+
+  .monitor-container {
+    padding: 36px 32px 60px;
+    max-width: 1280px;
     margin: 0 auto;
   }
 
-  .title {
-    font-size: 1.8rem;
+  .monitor-title {
+    font-size: 2rem;
     font-weight: 700;
-    margin-bottom: 30px;
+    margin-bottom: 28px;
   }
 
-  .camera-box {
+  .monitor-layout {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+
+  .monitor-left {
+    flex: 1 1 620px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .monitor-right {
+    flex: 1 1 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .camera-wrapper {
     position: relative;
-    background-color: black;
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    border-radius: 8px;
+    border-radius: 16px;
     overflow: hidden;
+    background: #040406;
+    min-height: 340px;
+    box-shadow: 0 18px 45px rgba(18, 28, 75, 0.3);
   }
 
-  .camera-box img {
+  .camera-wrapper img {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    background-color: black;
-    border-radius: 8px;
+    display: block;
   }
 
-  .privacy-overlay {
+  .status-pill {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    background-color: rgba(0, 0, 0, 0.75);
-    color: #fff;
+    left: 20px;
+    top: 20px;
     padding: 8px 16px;
     border-radius: 999px;
-    font-size: 0.9rem;
-    z-index: 10;
-    display: none;
-    pointer-events: none;
-  }
-
-  .button-wrapper {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-  }
-
-  .protect-button {
-    background-color: #5a6edc;
-    color: white;
-    padding: 10px 20px;
+    font-weight: 600;
     font-size: 0.95rem;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
+    color: #0b1b0f;
+    background: rgba(168, 247, 191, 0.85);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    backdrop-filter: blur(4px);
   }
 
-  #status-text {
+  .status-pill.danger {
+    background: rgba(255, 99, 132, 0.9);
+    color: #fff;
+  }
+
+  .privacy-badge {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 0.85rem;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(21, 24, 38, 0.9);
+    color: #cdd7ff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .privacy-badge.active {
+    opacity: 1;
+  }
+
+  .monitor-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px 22px;
+    box-shadow: 0 12px 35px rgba(21, 31, 77, 0.1);
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .card-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .card-header span {
+    font-size: 0.85rem;
+    color: #7e819a;
+  }
+
+  .trend-chart {
+    display: flex;
+    gap: 10px;
+  }
+
+  .trend-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .trend-bar {
+    width: 100%;
+    height: 70px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #76e0a6, #90f0d0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #0d2416;
+  }
+
+  .trend-bar.danger {
+    background: linear-gradient(135deg, #f87171, #f43f5e);
+    color: #fff;
+  }
+
+  .trend-time {
+    font-size: 0.8rem;
+    color: #8f91a3;
+  }
+
+  .control-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .toggle-label {
+    display: flex;
+    flex-direction: column;
+    font-weight: 600;
+  }
+
+  .toggle-desc {
+    font-size: 0.85rem;
+    color: #84879b;
+    margin-top: 2px;
+  }
+
+  .switch {
+    position: relative;
+    display: inline-flex;
+    width: 62px;
+    height: 32px;
+  }
+
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .switch-track {
+    position: absolute;
+    inset: 0;
+    background: #ced3f0;
+    border-radius: 999px;
+    transition: background 0.2s ease;
+  }
+
+  .switch-thumb {
+    position: absolute;
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    top: 3px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 6px 12px rgba(19, 27, 70, 0.25);
+    transition: transform 0.2s ease;
+  }
+
+  .switch input:checked + .switch-track {
+    background: #5563ff;
+  }
+
+  .switch input:checked + .switch-track + .switch-thumb {
+    transform: translateX(30px);
+  }
+
+  .alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 360px;
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+
+  .alert-card {
+    border-radius: 12px;
+    padding: 14px 16px;
+    border: 1px solid #eef0fb;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .alert-card.danger {
+    border-color: #ffc9d1;
+    background: #fff5f6;
+  }
+
+  .alert-meta {
+    font-size: 0.85rem;
+    color: #7c7f95;
+  }
+
+  .alert-title {
+    font-weight: 700;
     font-size: 1rem;
-    font-weight: bold;
-    margin-top: 10px;
-    color: green;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: #9da0b8;
+    padding: 20px 0;
+    font-size: 0.95rem;
+  }
+
+  @media (max-width: 960px) {
+    .monitor-layout {
+      flex-direction: column;
+    }
+    .monitor-right {
+      width: 100%;
+    }
   }
 </style>
 
-<div class="container">
-  <div class="title">낙상감지시스템</div>
+<div class="monitor-container">
+  <div class="monitor-title">낙상감지시스템</div>
+  <div class="monitor-layout">
+    <section class="monitor-left">
+      <div class="camera-wrapper">
+        <div class="status-pill" id="live-status">상태 확인 중...</div>
+        <div class="privacy-badge" id="privacy-overlay">
+          <span>🔒 보호모드</span>
+        </div>
+        <img
+          id="camera-stream"
+          src="{% url 'pose_estimation_feed' %}"
+          alt="카메라 스트리밍"
+        />
+      </div>
 
-  <!-- ✅ 카메라 스트리밍 -->
-  <div class="camera-box" id="camera-box">
-    <img
-      id="camera-stream"
-      src="{% url 'pose_estimation_feed' %}"
-      alt="카메라 스트리밍"
-    />
-    <div class="privacy-overlay" id="privacy-overlay"></div>
-  </div>
+      <div class="monitor-card">
+        <div class="card-header">
+          <h3>실시간 상태 추세</h3>
+          <span id="last-updated">최근 업데이트 : -</span>
+        </div>
+        <div class="trend-chart" id="trend-chart">
+          <div class="empty-state">데이터 수집 중...</div>
+        </div>
+      </div>
+    </section>
 
-  <!-- ✅ 버튼 -->
-  <div class="button-wrapper">
-    <button id="privacy-btn" class="protect-button" onclick="togglePrivacy()">
-      보호모드 켜기
-    </button>
+    <section class="monitor-right">
+      <div class="monitor-card control-card">
+        <div class="toggle-row">
+          <div class="toggle-label">
+            보호모드
+            <span class="toggle-desc">영상 가림 상태를 원터치로 전환합니다.</span>
+          </div>
+          <label class="switch">
+            <input
+              type="checkbox"
+              id="privacy-switch"
+              onchange="togglePrivacy()"
+            />
+            <span class="switch-track"></span>
+            <span class="switch-thumb"></span>
+          </label>
+        </div>
+        <div class="toggle-desc" id="privacy-detail">
+          현재 상태 확인 중...
+        </div>
+      </div>
+
+      <div class="monitor-card">
+        <div class="card-header">
+          <h3>실시간 낙상 알림</h3>
+          <span>최근 4건</span>
+        </div>
+        <div class="alert-list" id="alert-feed">
+          <div class="empty-state">아직 도착한 알림이 없습니다.</div>
+        </div>
+      </div>
+    </section>
   </div>
-  <p id="status-text">상태 확인 중...</p>
 </div>
 
 <script>
   const overlay = document.getElementById("privacy-overlay");
-  const btn = document.getElementById("privacy-btn");
+  const liveStatus = document.getElementById("live-status");
+  const privacySwitch = document.getElementById("privacy-switch");
+  const privacyDetail = document.getElementById("privacy-detail");
+  const trendChart = document.getElementById("trend-chart");
+  const lastUpdated = document.getElementById("last-updated");
+  const alertFeed = document.getElementById("alert-feed");
+
   let isPrivacyMode = {{ privacy_mode|yesno:"true,false" }};
+  let statusHistory = [];
+  const alerts = [];
 
   function applyPrivacyUI(state) {
-    overlay.style.display = state ? "block" : "none";
-    if (state) {
-      btn.style.backgroundColor = "#e74c3c";
-      btn.textContent = "보호모드 끄기";
-    } else {
-      btn.style.backgroundColor = "#5a6edc";
-      btn.textContent = "보호모드 켜기";
-    }
+    overlay.classList.toggle("active", state);
+    privacySwitch.checked = state;
+    privacyDetail.textContent = state
+      ? "카메라 영상이 보호모드로 가려진 상태입니다."
+      : "영상이 공개되어 있으며 자세한 감지를 진행합니다.";
   }
 
   applyPrivacyUI(isPrivacyMode);
@@ -124,24 +371,91 @@
       });
   }
 
+  function renderTrend() {
+    if (!statusHistory.length) {
+      trendChart.innerHTML =
+        '<div class="empty-state">데이터 수집 중...</div>';
+      return;
+    }
+    trendChart.innerHTML = statusHistory
+      .map(
+        (entry) => `
+        <div class="trend-item">
+          <div class="trend-bar ${entry.fall ? "danger" : ""}">
+            ${entry.fall ? "낙상" : "정상"}
+          </div>
+          <span class="trend-time">${entry.time}</span>
+        </div>
+      `
+      )
+      .join("");
+  }
+
+  function updateStatusView(data) {
+    liveStatus.textContent = data.label;
+    liveStatus.classList.toggle("danger", data.fall);
+    const now = new Date();
+    const timeLabel = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    lastUpdated.textContent = `최근 업데이트 : ${timeLabel}`;
+    statusHistory = [
+      ...statusHistory.slice(-5),
+      { fall: data.fall, time: timeLabel },
+    ];
+    renderTrend();
+  }
+
   function pollFallStatus() {
     fetch("{% url 'fall_status' %}")
       .then((res) => res.json())
-      .then((data) => {
-        const status = document.getElementById("status-text");
-        status.textContent = data.label;
-        status.style.color = data.fall ? "red" : "green";
-      })
+      .then(updateStatusView)
       .catch((err) => console.error("상태 요청 실패:", err));
   }
 
-  setInterval(pollFallStatus, 1000);
+  pollFallStatus();
+  setInterval(pollFallStatus, 1500);
+
+  function renderAlerts() {
+    if (!alerts.length) {
+      alertFeed.innerHTML =
+        '<div class="empty-state">아직 도착한 알림이 없습니다.</div>';
+      return;
+    }
+
+    alertFeed.innerHTML = alerts
+      .map(
+        (alert) => `
+        <div class="alert-card ${alert.fall_level === "고위험" ? "danger" : ""}">
+          <div class="alert-meta">${alert.formatted_time}</div>
+          <div class="alert-title">${alert.message}</div>
+          <div class="alert-meta">
+            ${alert.name} · ${alert.room_number} · ${alert.fall_level}
+          </div>
+        </div>
+      `
+      )
+      .join("");
+  }
 
   const sse = new EventSource("{% url 'fall_alert_stream' %}");
-
   sse.onmessage = function (event) {
     const data = JSON.parse(event.data);
-    console.log("새 알림:", data.message, data.fall_level);
+    const ts = new Date(data.timestamp);
+    alerts.unshift({
+      ...data,
+      formatted_time: ts.toLocaleString("ko-KR", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    });
+    if (alerts.length > 4) {
+      alerts.pop();
+    }
+    renderAlerts();
   };
 
   sse.onerror = function (err) {

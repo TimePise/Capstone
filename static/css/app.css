@@ -289,6 +289,21 @@ main.layout {
   background: #fff;
 }
 
+.input-inline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.input-inline .input-control {
+  flex: 1;
+}
+
+.input-inline .btn {
+  white-space: nowrap;
+  min-width: 140px;
+}
+
 .input-password {
   position: relative;
 }

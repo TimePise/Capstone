@@ -11,7 +11,7 @@ from django.conf import settings
 from .models import FallAlert
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from .model_gru import FallBiGRUAttentionNet
+from .model_gru import FallTemporalHybridNet
 import pygame
 import time
 from datetime import datetime
@@ -35,9 +35,9 @@ POSE_CONFIDENCE = 0.6
 VISIBILITY_THRESHOLD = 0.45
 SEQUENCE_WINDOW = 45
 MIN_SEQUENCE_LENGTH = 30
-FALL_SCORE_THRESHOLD = 0.6
-FALL_CONFIRMATION_WINDOW = 5
-FALL_CONFIRMATION_THRESHOLD = 3
+FALL_SCORE_THRESHOLD = 0.5
+FALL_CONFIRMATION_WINDOW = 4
+FALL_CONFIRMATION_THRESHOLD = 2
 PART_CONF_THRESHOLD = 0.55
 PART_LABELS = ["머리", "손목", "골반", "기타"]
 FALL_LEVEL_BY_PART = {
@@ -56,11 +56,37 @@ LANDMARK_LABELS = {
 }
 landmark_text_lines = ["좌표 정보를 수집 중입니다..."]
 
+FEATURE_DIM = 30
+FEATURE_STATS_PATH = os.path.join(settings.BASE_DIR, 'fall', 'feature_stats.json')
+try:
+    with open(FEATURE_STATS_PATH, 'r', encoding='utf-8') as f:
+        stats = json.load(f)
+    feature_mean = np.array(stats.get('mean', []), dtype=np.float32)
+    feature_std = np.array(stats.get('std', []), dtype=np.float32)
+    if feature_mean.shape[0] != FEATURE_DIM or feature_std.shape[0] != FEATURE_DIM:
+        raise ValueError("feature_stats dimension mismatch")
+except Exception as e:
+    print("⚠️ feature_stats 불러오기 실패:", e)
+    feature_mean = np.zeros(FEATURE_DIM, dtype=np.float32)
+    feature_std = np.ones(FEATURE_DIM, dtype=np.float32)
+
 # 모델 준비
 SELECTED_IDX = [0, 10, 15, 16, 23, 24]
-model = FallBiGRUAttentionNet(input_dim=24, hidden_dim=128, num_layers=2, fall_classes=2, part_classes=4)
-model_path = os.path.join(settings.BASE_DIR, 'fall', 'fall_bigru_model.pth')
-model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+model = FallTemporalHybridNet(
+    input_dim=FEATURE_DIM,
+    temporal_channels=96,
+    hidden_dim=160,
+    num_layers=2,
+    fall_classes=2,
+    part_classes=len(PART_LABELS),
+    include_velocity=False,
+)
+model_path = os.path.join(settings.BASE_DIR, 'fall', 'fall_temporal_hybrid_best.pth')
+try:
+    state = torch.load(model_path, map_location=torch.device('cpu'))
+    model.load_state_dict(state)
+except Exception as e:
+    print("❌ 하이브리드 모델 로드 실패:", e)
 model.eval()
 
 # MediaPipe 초기화
@@ -134,7 +160,7 @@ def start_pose_thread_once():
 def generate_pose_estimation():
     global last_fall_label, last_fall_pred, alarm_cooldown, shared_frame, last_visible_frame
     sequence = deque(maxlen=SEQUENCE_WINDOW)
-    prev_zs = None
+    prev_coords = None
     fall_votes = deque(maxlen=FALL_CONFIRMATION_WINDOW)
     cap = cv2.VideoCapture(0)
 
@@ -170,30 +196,18 @@ def generate_pose_estimation():
                 landmarks = result.pose_landmarks.landmark
                 if all(landmarks[idx].visibility >= VISIBILITY_THRESHOLD for idx in SELECTED_IDX):
                     _update_landmark_text(landmarks)
-                    keypoints = []
-                    current_zs = []
-
-                    hip_center_x = (landmarks[23].x + landmarks[24].x) / 2
-                    hip_center_y = (landmarks[23].y + landmarks[24].y) / 2
-
-                    for idx in SELECTED_IDX:
-                        lm = landmarks[idx]
-                        current_zs.append(lm.z)
-
-                    for i, idx in enumerate(SELECTED_IDX):
-                        lm = landmarks[idx]
-                        z_now = lm.z
-                        z_prev = prev_zs[i] if prev_zs else z_now
-                        speed_z = z_now - z_prev
-                        keypoints.extend([
-                            lm.x - hip_center_x,
-                            lm.y - hip_center_y,
-                            lm.z,
-                            speed_z
-                        ])
-
-                    prev_zs = current_zs
-                    sequence.append(keypoints)
+                    coords = np.array(
+                        [[landmarks[idx].x, landmarks[idx].y, landmarks[idx].z] for idx in SELECTED_IDX],
+                        dtype=np.float32,
+                    )
+                    if prev_coords is None:
+                        deltas = np.zeros_like(coords)
+                    else:
+                        deltas = coords - prev_coords
+                    prev_coords = coords
+                    feature_vec = np.concatenate([coords, deltas[:, :2]], axis=1).reshape(-1)
+                    normalized = ((feature_vec - feature_mean) / feature_std).astype(np.float32)
+                    sequence.append(normalized)
 
                     if len(sequence) >= MIN_SEQUENCE_LENGTH:
                         input_seq = np.array(list(sequence)[-MIN_SEQUENCE_LENGTH:], dtype=np.float32)
@@ -254,9 +268,9 @@ def generate_pose_estimation():
                                         }
                                     )
                 else:
-                    prev_zs = None
+                    prev_coords = None
             else:
-                prev_zs = None
+                prev_coords = None
 
             last_fall_label = label
             last_fall_pred = fall_pred
