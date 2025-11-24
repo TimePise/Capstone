@@ -70,6 +70,10 @@ except Exception as e:
     feature_mean = np.zeros(FEATURE_DIM, dtype=np.float32)
     feature_std = np.ones(FEATURE_DIM, dtype=np.float32)
 
+HIP_DROP_THRESHOLD = 0.12
+HIP_BASELINE_ALPHA = 0.02
+hip_baseline = None
+
 # 모델 준비
 SELECTED_IDX = [0, 10, 15, 16, 23, 24]
 model = FallTemporalHybridNet(
@@ -134,6 +138,19 @@ def _get_landmark_text():
     with landmark_lock:
         return list(landmark_text_lines)
 
+def _update_hip_baseline(current_y):
+    global hip_baseline
+    if current_y is None:
+        return
+    if hip_baseline is None:
+        hip_baseline = current_y
+    else:
+        hip_baseline = (1 - HIP_BASELINE_ALPHA) * hip_baseline + HIP_BASELINE_ALPHA * current_y
+
+def _reset_hip_baseline():
+    global hip_baseline
+    hip_baseline = None
+
 def toggle_privacy_mode(request):
     new_state = _set_privacy_mode(not get_privacy_mode_state())
     return JsonResponse({'privacy_mode': new_state})
@@ -158,7 +175,7 @@ def start_pose_thread_once():
 
 # ✅ 낙상 감지 루프 (프레임 저장 포함)
 def generate_pose_estimation():
-    global last_fall_label, last_fall_pred, alarm_cooldown, shared_frame, last_visible_frame
+    global last_fall_label, last_fall_pred, alarm_cooldown, shared_frame, last_visible_frame, hip_baseline
     sequence = deque(maxlen=SEQUENCE_WINDOW)
     prev_coords = None
     fall_votes = deque(maxlen=FALL_CONFIRMATION_WINDOW)
@@ -196,6 +213,7 @@ def generate_pose_estimation():
                 landmarks = result.pose_landmarks.landmark
                 if all(landmarks[idx].visibility >= VISIBILITY_THRESHOLD for idx in SELECTED_IDX):
                     _update_landmark_text(landmarks)
+                    hip_center_y = (landmarks[23].y + landmarks[24].y) / 2.0
                     coords = np.array(
                         [[landmarks[idx].x, landmarks[idx].y, landmarks[idx].z] for idx in SELECTED_IDX],
                         dtype=np.float32,
@@ -218,7 +236,14 @@ def generate_pose_estimation():
                             fall_score = float(fall_probs[0, 1])
                             raw_pred = 1 if fall_score >= FALL_SCORE_THRESHOLD else 0
                             fall_votes.append(raw_pred)
-                            fall_pred = 1 if sum(fall_votes) >= FALL_CONFIRMATION_THRESHOLD else 0
+                            fall_candidate = 1 if sum(fall_votes) >= FALL_CONFIRMATION_THRESHOLD else 0
+                            if fall_candidate and hip_baseline is not None:
+                                hip_drop = hip_center_y - hip_baseline
+                                if hip_drop < HIP_DROP_THRESHOLD:
+                                    fall_candidate = 0
+                                    if fall_votes:
+                                        fall_votes[-1] = 0
+                            fall_pred = fall_candidate
 
                             if fall_pred == 1:
                                 current_time = time.time()
@@ -253,6 +278,8 @@ def generate_pose_estimation():
                                         is_read=False
                                     )
 
+                                    _reset_hip_baseline()
+
                                     channel_layer = get_channel_layer()
                                     async_to_sync(channel_layer.group_send)(
                                         "fall_alert_group",
@@ -267,10 +294,16 @@ def generate_pose_estimation():
                                             "timestamp": timestamp
                                         }
                                     )
+                            else:
+                                _update_hip_baseline(hip_center_y)
+                    else:
+                        _update_hip_baseline(hip_center_y)
                 else:
                     prev_coords = None
+                    _reset_hip_baseline()
             else:
                 prev_coords = None
+                _reset_hip_baseline()
 
             last_fall_label = label
             last_fall_pred = fall_pred

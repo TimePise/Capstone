@@ -23,8 +23,12 @@ from typing import Iterable, List, Optional, Tuple
 import numpy as np
 import torch
 import pandas as pd
+import matplotlib.pyplot as plt
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, random_split
+
+plt.rcParams["font.family"] = "AppleGothic"
+plt.rcParams["axes.unicode_minus"] = False
 
 from fall.model_gru import FallTemporalHybridNet
 
@@ -110,12 +114,10 @@ class PoseSequenceDataset(Dataset):
 
         features = np.concatenate([coords, deltas[..., :2]], axis=2)
         self.feature_dim = features.shape[2] * features.shape[1]
-        self.frames = features.reshape(features.shape[0], -1)
-
-        if normalize:
-            mean = self.frames.mean(axis=0, keepdims=True)
-            std = self.frames.std(axis=0, keepdims=True) + 1e-6
-            self.frames = (self.frames - mean) / std
+        self.frames_raw = features.reshape(features.shape[0], -1).astype(np.float32)
+        self.frames = self.frames_raw.copy()
+        self.mean = None
+        self.std = None
 
         self.fall_labels = df[FALL_COLUMN].astype(np.int64).to_numpy()
         self.part_labels = df[PART_COLUMN].astype(np.int64).to_numpy()
@@ -126,9 +128,18 @@ class PoseSequenceDataset(Dataset):
         self.samples: List[Tuple[np.ndarray, int, int]] = []
         self.sample_fall_labels: List[int] = []
         self.sample_part_labels: List[int] = []
-        self._build_samples()
+
+        if normalize:
+            mean = self.frames_raw.mean(axis=0, keepdims=True)
+            std = self.frames_raw.std(axis=0, keepdims=True) + 1e-6
+            self.apply_normalization(mean, std)
+        else:
+            self._build_samples()
 
     def _build_samples(self):
+        self.samples = []
+        self.sample_fall_labels = []
+        self.sample_part_labels = []
         total = len(self.frames)
         for start in range(0, total - self.seq_len + 1, self.stride):
             end = start + self.seq_len
@@ -149,6 +160,12 @@ class PoseSequenceDataset(Dataset):
             "fall": torch.tensor(fall, dtype=torch.long),
             "part": torch.tensor(part, dtype=torch.long),
         }
+
+    def apply_normalization(self, mean: np.ndarray, std: np.ndarray):
+        self.mean = mean.astype(np.float32)
+        self.std = std.astype(np.float32)
+        self.frames = (self.frames_raw - self.mean) / self.std
+        self._build_samples()
 
 
 def _apply_augmentations(
@@ -184,20 +201,30 @@ def train_one_epoch(
     part_weight: float = 0.3,
     augment: bool = False,
     augment_cfg: Optional[dict] = None,
+    epoch_idx: int = 1,
+    total_epochs: int = 1,
 ) -> float:
     model.train()
+    decay = 1.0
+    if total_epochs > 0:
+        progress = min(max(epoch_idx - 1, 0), total_epochs) / total_epochs
+        decay = max(0.05, 1.0 - progress)
     total_loss = 0.0
     for batch in loader:
         seq = batch["sequence"].to(device, non_blocking=True)
         fall_label = batch["fall"].to(device, non_blocking=True)
         part_label = batch["part"].to(device, non_blocking=True)
         if augment and augment_cfg:
+            noise_std = augment_cfg.get("noise_std", 0.0) * decay
+            scale_jitter = augment_cfg.get("scale_jitter", 0.0) * decay
+            dropout_prob = augment_cfg.get("dropout_prob", 0.0) * decay
+            temporal_mask_prob = augment_cfg.get("temporal_mask_prob", 0.0) * decay
             seq = _apply_augmentations(
                 seq,
-                noise_std=augment_cfg.get("noise_std", 0.0),
-                scale_jitter=augment_cfg.get("scale_jitter", 0.0),
-                dropout_prob=augment_cfg.get("dropout_prob", 0.0),
-                temporal_mask_prob=augment_cfg.get("temporal_mask_prob", 0.0),
+                noise_std=noise_std,
+                scale_jitter=scale_jitter,
+                dropout_prob=dropout_prob,
+                temporal_mask_prob=temporal_mask_prob,
             )
 
         optimizer.zero_grad()
@@ -247,6 +274,34 @@ def evaluate(
     return total_loss / max(len(loader), 1), acc, mse, mae
 
 
+def plot_training_curves(history: dict, out_path: Path):
+    epochs = list(range(1, len(history["train_loss"]) + 1))
+    if not epochs:
+        print("⚠️ 저장할 학습 기록이 없습니다.")
+        return
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+    axes[0].plot(epochs, history["train_loss"], label="학습손실")
+    axes[0].plot(epochs, history["val_loss"], label="검증손실")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].set_title("손실 추이")
+    axes[0].legend()
+
+    axes[1].plot(epochs, history["val_acc"], label="검증정확도")
+    axes[1].plot(epochs, history["val_mse"], label="MSE")
+    axes[1].plot(epochs, history["val_mae"], label="MAE")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_title("정확도 / 오차 추이")
+    axes[1].legend()
+
+    fig.tight_layout()
+    out_path = Path(out_path)
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"📈 학습 곡선 저장 완료: {out_path}")
+
+
 def build_loaders(
     csv_path: Path,
     label_csv: Optional[Path],
@@ -255,6 +310,7 @@ def build_loaders(
     batch_size: int,
     val_ratio: float,
     num_workers: int,
+    seed: int,
 ) -> Tuple[DataLoader, DataLoader, int, List[int]]:
     intervals = load_event_intervals(label_csv) if label_csv else None
     dataset = PoseSequenceDataset(
@@ -268,7 +324,14 @@ def build_loaders(
 
     val_size = max(1, int(len(dataset) * val_ratio))
     train_size = len(dataset) - val_size
-    train_set, val_set = random_split(dataset, [train_size, val_size])
+    generator = torch.Generator().manual_seed(seed)
+    train_set, val_set = random_split(dataset, [train_size, val_size], generator=generator)
+    if len(train_set) == 0:
+        raise RuntimeError("Train split is empty; adjust val_ratio.")
+    train_frames = dataset.frames_raw[train_set.indices]
+    mean = train_frames.mean(axis=0, keepdims=True)
+    std = train_frames.std(axis=0, keepdims=True) + 1e-6
+    dataset.apply_normalization(mean, std)
 
     loader_kwargs = dict(
         num_workers=max(0, num_workers),
@@ -344,6 +407,9 @@ def parse_args():
     parser.add_argument("--augment-scale-jitter", type=float, default=0.1, help="전체 스케일 변화 비율")
     parser.add_argument("--augment-dropout-prob", type=float, default=0.05, help="특징별 드롭 확률")
     parser.add_argument("--augment-temporal-mask", type=float, default=0.05, help="프레임 드롭 확률")
+    parser.add_argument("--plot-file", type=Path, default=Path("training_curves.png"), help="학습 곡선 저장 경로")
+    parser.add_argument("--no-plot", action="store_true", help="학습 곡선 그래프 저장 생략")
+    parser.add_argument("--seed", type=int, default=42, help="데이터 분할을 위한 시드")
     return parser.parse_args()
 
 
@@ -361,6 +427,7 @@ def main():
         batch_size=args.batch_size,
         val_ratio=args.val_ratio,
         num_workers=args.num_workers,
+        seed=args.seed,
     )
 
     device = resolve_device(args.device)
@@ -392,6 +459,13 @@ def main():
         "temporal_mask_prob": min(max(0.0, args.augment_temporal_mask), 1.0),
     }
 
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "val_acc": [],
+        "val_mse": [],
+        "val_mae": [],
+    }
     best_acc = 0.0
     for epoch in range(1, args.epochs + 1):
         print(f"\nEpoch {epoch}/{args.epochs}")
@@ -405,6 +479,8 @@ def main():
             args.part_weight,
             augment=augment_enabled,
             augment_cfg=augment_cfg,
+            epoch_idx=epoch,
+            total_epochs=args.epochs,
         )
         val_loss, val_acc, val_mse, val_mae = evaluate(
             model,
@@ -414,6 +490,11 @@ def main():
             device,
             args.part_weight,
         )
+        history["train_loss"].append(train_loss)
+        history["val_loss"].append(val_loss)
+        history["val_acc"].append(val_acc)
+        history["val_mse"].append(val_mse)
+        history["val_mae"].append(val_mae)
         print(
             "  "
             f"학습손실(모델이 학습 데이터에서 틀린 정도)={train_loss:.4f} "
@@ -428,6 +509,12 @@ def main():
             out_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(model.state_dict(), str(out_path))
             print(f"  ✅ Saved best model (acc={best_acc:.3f})")
+
+    if not args.no_plot:
+        try:
+            plot_training_curves(history, args.plot_file)
+        except Exception as e:
+            print(f"⚠️ 학습 곡선 저장 실패: {e}")
 
 
 if __name__ == "__main__":
