@@ -4,6 +4,7 @@ from django.conf.urls import include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', include('member.urls')),
     path('member/', include('member.urls')),
     path('fall/', include('fall.urls')),  # ✅ 이 줄이 반드시 필요!!
 ]

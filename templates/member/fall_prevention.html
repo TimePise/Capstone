@@ -239,9 +239,22 @@
     gap: 4px;
   }
 
-  .alert-card.danger {
-    border-color: #ffc9d1;
-    background: #fff5f6;
+  .alert-card.level-critical {
+    border-color: #fda4af;
+    background: linear-gradient(135deg, #ff6b6b, #c81d77);
+    color: #fff;
+  }
+
+  .alert-card.level-warning {
+    border-color: #bfdbfe;
+    background: linear-gradient(135deg, #91c9ff, #5ba4f7);
+    color: #0f172a;
+  }
+
+  .alert-card.level-safe {
+    border-color: #feeaa4;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #7a4b00;
   }
 
   .alert-meta {
@@ -426,16 +439,23 @@
 
     alertFeed.innerHTML = alerts
       .map(
-        (alert) => `
-        <div class="alert-card ${alert.fall_level === "고위험" ? "danger" : ""}">
+        (alert) => {
+          const levelClass =
+            alert.fall_level === "고위험"
+              ? "level-critical"
+              : alert.fall_level === "중위험"
+              ? "level-warning"
+              : "level-safe";
+          return `
+        <div class="alert-card ${levelClass}">
           <div class="alert-meta">${alert.formatted_time}</div>
           <div class="alert-title">${alert.message}</div>
           <div class="alert-meta">
             ${alert.name} · ${alert.room_number} · ${alert.fall_level}
           </div>
         </div>
-      `
-      )
+      `;
+        })
       .join("");
   }
 
