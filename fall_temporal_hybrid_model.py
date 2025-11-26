@@ -73,6 +73,12 @@ JOINT_COLUMNS = [
 FEATURE_COLUMNS = [col for _, cols in JOINT_COLUMNS for col in cols]
 FALL_COLUMN = "fall_label"
 PART_COLUMN = "part_label"
+FEATURES_PER_JOINT = 5
+JOINT_NAME_TO_IDX = {name: idx for idx, (name, _) in enumerate(JOINT_COLUMNS)}
+HORIZONTAL_MIRROR_PAIRS = [
+    (JOINT_NAME_TO_IDX["right_wrist"], JOINT_NAME_TO_IDX["left_wrist"]),
+    (JOINT_NAME_TO_IDX["right_hip"], JOINT_NAME_TO_IDX["left_hip"]),
+]
 
 
 class PoseSequenceDataset(Dataset):
@@ -93,6 +99,7 @@ class PoseSequenceDataset(Dataset):
         self.stride = stride
         self.normalize = normalize
         self.intervals = intervals or []
+        self.sample_starts: List[int] = []
 
         try:
             df = pd.read_csv(csv_path, engine="c", low_memory=False)
@@ -140,6 +147,7 @@ class PoseSequenceDataset(Dataset):
         self.samples = []
         self.sample_fall_labels = []
         self.sample_part_labels = []
+        self.sample_starts = []
         total = len(self.frames)
         for start in range(0, total - self.seq_len + 1, self.stride):
             end = start + self.seq_len
@@ -149,6 +157,7 @@ class PoseSequenceDataset(Dataset):
             self.samples.append((seq.astype(np.float32), fall, part))
             self.sample_fall_labels.append(fall)
             self.sample_part_labels.append(part)
+            self.sample_starts.append(start)
 
     def __len__(self):
         return len(self.samples)
@@ -167,6 +176,17 @@ class PoseSequenceDataset(Dataset):
         self.frames = (self.frames_raw - self.mean) / self.std
         self._build_samples()
 
+    def get_frame_indices_for_samples(self, sample_indices: Iterable[int]) -> np.ndarray:
+        frame_indices = set()
+        total = len(self.frames)
+        for sample_idx in sample_indices:
+            start = self.sample_starts[sample_idx]
+            end = min(start + self.seq_len, total)
+            frame_indices.update(range(start, end))
+        if not frame_indices:
+            return np.arange(total)
+        return np.array(sorted(frame_indices), dtype=np.int64)
+
 
 def _apply_augmentations(
     seq: torch.Tensor,
@@ -174,6 +194,7 @@ def _apply_augmentations(
     scale_jitter: float,
     dropout_prob: float,
     temporal_mask_prob: float,
+    horizontal_flip_prob: float,
 ) -> torch.Tensor:
     if noise_std > 0:
         seq = seq + torch.randn_like(seq) * noise_std
@@ -188,7 +209,50 @@ def _apply_augmentations(
     if temporal_mask_prob > 0:
         frame_mask = torch.rand(seq.size(0), seq.size(1), 1, device=seq.device) < temporal_mask_prob
         seq = seq.masked_fill(frame_mask, 0.0)
+    if horizontal_flip_prob > 0:
+        flip_mask = torch.rand(seq.size(0), device=seq.device) < horizontal_flip_prob
+        if flip_mask.any():
+            seq[flip_mask] = _horizontal_flip_batch(seq[flip_mask])
     return seq
+
+
+def _horizontal_flip_batch(batch_seq: torch.Tensor) -> torch.Tensor:
+    batch, seq_len, dim = batch_seq.shape
+    if dim % FEATURES_PER_JOINT != 0:
+        raise ValueError(
+            f"Feature dimension {dim} is not divisible by {FEATURES_PER_JOINT}; cannot apply horizontal flip."
+        )
+    joint_dim = dim // FEATURES_PER_JOINT
+    view = batch_seq.reshape(batch, seq_len, joint_dim, FEATURES_PER_JOINT).clone()
+    view[..., 0] = 1.0 - view[..., 0]
+    view[..., 3] = -view[..., 3]
+    for a_idx, b_idx in HORIZONTAL_MIRROR_PAIRS:
+        view[..., [a_idx, b_idx], :] = view[..., [b_idx, a_idx], :]
+    return view.reshape_as(batch_seq)
+
+
+class MirrorAugmentedSubset(Dataset):
+    """Subset wrapper that deterministically includes mirrored copies of every sequence."""
+
+    def __init__(self, subset: Dataset):
+        self.subset = subset
+
+    def __len__(self):
+        return len(self.subset) * 2
+
+    def __getitem__(self, idx: int):
+        base_idx = idx // 2
+        mirror = idx % 2 == 1
+        sample = self.subset[base_idx]
+        if not mirror:
+            return sample
+        seq = sample["sequence"]
+        flipped = _horizontal_flip_batch(seq.unsqueeze(0)).squeeze(0)
+        return {
+            "sequence": flipped,
+            "fall": sample["fall"],
+            "part": sample["part"],
+        }
 
 
 def train_one_epoch(
@@ -219,12 +283,14 @@ def train_one_epoch(
             scale_jitter = augment_cfg.get("scale_jitter", 0.0) * decay
             dropout_prob = augment_cfg.get("dropout_prob", 0.0) * decay
             temporal_mask_prob = augment_cfg.get("temporal_mask_prob", 0.0) * decay
+            horizontal_flip_prob = augment_cfg.get("horizontal_flip_prob", 0.0)
             seq = _apply_augmentations(
                 seq,
                 noise_std=noise_std,
                 scale_jitter=scale_jitter,
                 dropout_prob=dropout_prob,
                 temporal_mask_prob=temporal_mask_prob,
+                horizontal_flip_prob=horizontal_flip_prob,
             )
 
         optimizer.zero_grad()
@@ -311,6 +377,7 @@ def build_loaders(
     val_ratio: float,
     num_workers: int,
     seed: int,
+    train_mirror_duplicate: bool = False,
 ) -> Tuple[DataLoader, DataLoader, int, List[int]]:
     intervals = load_event_intervals(label_csv) if label_csv else None
     dataset = PoseSequenceDataset(
@@ -328,10 +395,13 @@ def build_loaders(
     train_set, val_set = random_split(dataset, [train_size, val_size], generator=generator)
     if len(train_set) == 0:
         raise RuntimeError("Train split is empty; adjust val_ratio.")
-    train_frames = dataset.frames_raw[train_set.indices]
+    train_frame_idx = dataset.get_frame_indices_for_samples(train_set.indices)
+    train_frames = dataset.frames_raw[train_frame_idx]
     mean = train_frames.mean(axis=0, keepdims=True)
     std = train_frames.std(axis=0, keepdims=True) + 1e-6
     dataset.apply_normalization(mean, std)
+    if train_mirror_duplicate:
+        train_set = MirrorAugmentedSubset(train_set)
 
     loader_kwargs = dict(
         num_workers=max(0, num_workers),
@@ -407,6 +477,8 @@ def parse_args():
     parser.add_argument("--augment-scale-jitter", type=float, default=0.1, help="전체 스케일 변화 비율")
     parser.add_argument("--augment-dropout-prob", type=float, default=0.05, help="특징별 드롭 확률")
     parser.add_argument("--augment-temporal-mask", type=float, default=0.05, help="프레임 드롭 확률")
+    parser.add_argument("--augment-horizontal-flip", type=float, default=0.5, help="좌우 반전 적용 확률")
+    parser.add_argument("--train-mirror-duplicate", action="store_true", help="훈련 세트에 좌우 반전 시퀀스를 한 번 더 포함")
     parser.add_argument("--plot-file", type=Path, default=Path("training_curves.png"), help="학습 곡선 저장 경로")
     parser.add_argument("--no-plot", action="store_true", help="학습 곡선 그래프 저장 생략")
     parser.add_argument("--seed", type=int, default=42, help="데이터 분할을 위한 시드")
@@ -428,6 +500,7 @@ def main():
         val_ratio=args.val_ratio,
         num_workers=args.num_workers,
         seed=args.seed,
+        train_mirror_duplicate=args.train_mirror_duplicate,
     )
 
     device = resolve_device(args.device)
@@ -457,6 +530,7 @@ def main():
         "scale_jitter": max(0.0, args.augment_scale_jitter),
         "dropout_prob": min(max(0.0, args.augment_dropout_prob), 1.0),
         "temporal_mask_prob": min(max(0.0, args.augment_temporal_mask), 1.0),
+        "horizontal_flip_prob": min(max(0.0, args.augment_horizontal_flip), 1.0),
     }
 
     history = {

@@ -55,6 +55,12 @@ LANDMARK_LABELS = {
     24: "오른엉덩",
 }
 landmark_text_lines = ["좌표 정보를 수집 중입니다..."]
+JOINT_INDEX_LOOKUP = {idx: pos for pos, idx in enumerate(SELECTED_IDX)}
+MIRROR_JOINT_INDICES = [
+    (JOINT_INDEX_LOOKUP[left], JOINT_INDEX_LOOKUP[right])
+    for left, right in [(15, 16), (23, 24)]
+    if left in JOINT_INDEX_LOOKUP and right in JOINT_INDEX_LOOKUP
+]
 
 FEATURE_DIM = 30
 FEATURE_STATS_PATH = os.path.join(settings.BASE_DIR, 'fall', 'feature_stats.json')
@@ -138,6 +144,19 @@ def _get_landmark_text():
     with landmark_lock:
         return list(landmark_text_lines)
 
+def _build_feature_vector(coords, deltas):
+    return np.concatenate([coords, deltas[:, :2]], axis=1).reshape(-1)
+
+def _mirror_pose_features(coords, deltas):
+    mirrored_coords = coords.copy()
+    mirrored_deltas = deltas.copy()
+    mirrored_coords[:, 0] = 1.0 - mirrored_coords[:, 0]
+    mirrored_deltas[:, 0] = -mirrored_deltas[:, 0]
+    for left_idx, right_idx in MIRROR_JOINT_INDICES:
+        mirrored_coords[[left_idx, right_idx]] = mirrored_coords[[right_idx, left_idx]]
+        mirrored_deltas[[left_idx, right_idx]] = mirrored_deltas[[right_idx, left_idx]]
+    return _build_feature_vector(mirrored_coords, mirrored_deltas)
+
 def _update_hip_baseline(current_y):
     global hip_baseline
     if current_y is None:
@@ -177,6 +196,7 @@ def start_pose_thread_once():
 def generate_pose_estimation():
     global last_fall_label, last_fall_pred, alarm_cooldown, shared_frame, last_visible_frame, hip_baseline
     sequence = deque(maxlen=SEQUENCE_WINDOW)
+    mirror_sequence = deque(maxlen=SEQUENCE_WINDOW)
     prev_coords = None
     fall_votes = deque(maxlen=FALL_CONFIRMATION_WINDOW)
     cap = cv2.VideoCapture(0)
@@ -223,18 +243,34 @@ def generate_pose_estimation():
                     else:
                         deltas = coords - prev_coords
                     prev_coords = coords
-                    feature_vec = np.concatenate([coords, deltas[:, :2]], axis=1).reshape(-1)
+                    feature_vec = _build_feature_vector(coords, deltas)
                     normalized = ((feature_vec - feature_mean) / feature_std).astype(np.float32)
                     sequence.append(normalized)
 
+                    mirrored_vec = _mirror_pose_features(coords, deltas)
+                    mirrored_normalized = ((mirrored_vec - feature_mean) / feature_std).astype(np.float32)
+                    mirror_sequence.append(mirrored_normalized)
+
                     if len(sequence) >= MIN_SEQUENCE_LENGTH:
                         input_seq = np.array(list(sequence)[-MIN_SEQUENCE_LENGTH:], dtype=np.float32)
+                        mirror_seq = np.array(list(mirror_sequence)[-MIN_SEQUENCE_LENGTH:], dtype=np.float32)
                         input_tensor = torch.from_numpy(input_seq).unsqueeze(0)
+                        mirror_tensor = torch.from_numpy(mirror_seq).unsqueeze(0)
+                        selected_part_probs = None
                         with torch.no_grad():
                             fall_out, part_out = model(input_tensor)
+                            mirror_fall_out, mirror_part_out = model(mirror_tensor)
                             fall_probs = torch.softmax(fall_out, dim=1)
+                            mirror_fall_probs = torch.softmax(mirror_fall_out, dim=1)
                             fall_score = float(fall_probs[0, 1])
-                            raw_pred = 1 if fall_score >= FALL_SCORE_THRESHOLD else 0
+                            mirror_fall_score = float(mirror_fall_probs[0, 1])
+                            if mirror_fall_score > fall_score:
+                                active_score = mirror_fall_score
+                                selected_part_probs = torch.softmax(mirror_part_out, dim=1)
+                            else:
+                                active_score = fall_score
+                                selected_part_probs = torch.softmax(part_out, dim=1)
+                            raw_pred = 1 if active_score >= FALL_SCORE_THRESHOLD else 0
                             fall_votes.append(raw_pred)
                             fall_candidate = 1 if sum(fall_votes) >= FALL_CONFIRMATION_THRESHOLD else 0
                             if fall_candidate and hip_baseline is not None:
@@ -245,14 +281,13 @@ def generate_pose_estimation():
                                         fall_votes[-1] = 0
                             fall_pred = fall_candidate
 
-                            if fall_pred == 1:
+                            if fall_pred == 1 and selected_part_probs is not None:
                                 current_time = time.time()
                                 if current_time - alarm_cooldown >= ALARM_INTERVAL:
                                     alarm_cooldown = current_time
 
-                                    part_probs = torch.softmax(part_out, dim=1)
-                                    part_idx = torch.argmax(part_probs, dim=1).item()
-                                    part_score = float(part_probs[0, part_idx])
+                                    part_idx = torch.argmax(selected_part_probs, dim=1).item()
+                                    part_score = float(selected_part_probs[0, part_idx])
                                     part = PART_LABELS[part_idx] if part_idx < len(PART_LABELS) else "기타"
 
                                     if part_score < PART_CONF_THRESHOLD:
