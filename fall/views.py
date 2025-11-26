@@ -55,6 +55,7 @@ LANDMARK_LABELS = {
     24: "오른엉덩",
 }
 landmark_text_lines = ["좌표 정보를 수집 중입니다..."]
+SELECTED_IDX = [0, 10, 15, 16, 23, 24]
 JOINT_INDEX_LOOKUP = {idx: pos for pos, idx in enumerate(SELECTED_IDX)}
 MIRROR_JOINT_INDICES = [
     (JOINT_INDEX_LOOKUP[left], JOINT_INDEX_LOOKUP[right])
@@ -81,7 +82,6 @@ HIP_BASELINE_ALPHA = 0.02
 hip_baseline = None
 
 # 모델 준비
-SELECTED_IDX = [0, 10, 15, 16, 23, 24]
 model = FallTemporalHybridNet(
     input_dim=FEATURE_DIM,
     temporal_channels=96,
